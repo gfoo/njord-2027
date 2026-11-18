@@ -306,10 +306,11 @@ function windyLink([lat, lon]) {
   })}`;
 }
 
-// Windy's route planner reads the waypoints from its path. The format comes from Windy's team on
-// its forum, not from a documented API: if Windy changes it, the link opens an empty planner.
+// The address Windy itself shows for a route in boat mode, not a documented API: if Windy changes
+// it, the link opens an empty planner. The boat's speed and the distance unit are not part of it:
+// Windy keeps them as settings in the viewer's browser.
 function windyRouteLink(path) {
-  return `https://www.windy.com/distance/${path.map(([lat, lon]) => `${lat.toFixed(3)},${lon.toFixed(3)}`).join(';')}`;
+  return `https://www.windy.com/route-planner/boat/${path.map(([lat, lon]) => `${lat.toFixed(4)},${lon.toFixed(4)}`).join(';')}`;
 }
 
 // Map symbols, drawn in a 48 px box centred on their point. A dark halo under the coloured
