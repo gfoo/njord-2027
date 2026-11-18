@@ -214,6 +214,9 @@
     let roseYears = ROSE_DEFAULT_YEARS;
     const yearsText = years => (years === 1 ? 'un an' : `${years} ans`);
     const clickedPoint = L.circleMarker([0, 0], { radius: 6, color: '#c0392b', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false });
+    // A highlighter band under the selected leg, kept below every line so that the leg stays drawn
+    // as it is, dashes included. Its pale yellow is none of the wind's force colours.
+    const legHighlight = L.polyline([], { color: '#ffd84d', weight: 14, opacity: 0.75, interactive: false });
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
@@ -252,6 +255,8 @@
       const key = formatPosition(at);
       roseKey = key;
       clickedPoint.setLatLng(clicked).addTo(map);
+      if (route) legHighlight.setLatLngs(route.path).addTo(map).bringToBack();
+      else legHighlight.remove();
       weather.hidden = false;
       weather.innerHTML =
         `<button class="close" aria-label="Fermer">×</button>` +
@@ -281,6 +286,7 @@
         weather.hidden = true;
         roseKey = null;
         clickedPoint.remove();
+        legHighlight.remove();
       });
       const now = weather.querySelector('.now');
       const trend = weather.querySelector('.trend');
