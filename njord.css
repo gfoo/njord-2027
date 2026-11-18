@@ -1,0 +1,8 @@
+:root { --route: #1d4e89; }
+
+.port-label {
+  padding: 0 4px; background: none; border: none; box-shadow: none;
+  font-weight: 600; color: #1d2b3a;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
+.port-label::before { display: none; }

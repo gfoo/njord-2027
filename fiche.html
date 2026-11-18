@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>NJORD — fiche d'étape</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Dancing+Script:wght@500&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+          integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"
+          integrity="sha384-oiKvfHOCwLd5BVeyS4Zc1WW9KNRFXyXCkijYVrNbvw6BzoPFC+HiHzZi8FlRAvQ3" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="njord.css">
+  <script src="njord.js"></script>
+  <style>
+    :root {
+      --navy: #17365d;
+      --ivory: #f4ecd6;
+      --ink: #1d2b3a;
+      --rule: rgba(23, 54, 93, 0.35);
+      --go: #2f7d3a;
+      --caution: #c48a14;
+      --nogo: #b3261e;
+    }
+    @page { size: A3; margin: 0; }
+    html { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    body { margin: 0; color: var(--ink); font: 9pt/1.3 'EB Garamond', Georgia, serif; }
+    h1, h2, h3, .cinzel { font-family: 'Cinzel', Georgia, serif; font-weight: 700; color: var(--navy); }
+
+    /* One A3 sheet laid out at its printed size, so that the map is the same on screen and on paper.
+       The map takes whatever height the rubrics leave, so that every leg fills exactly one sheet. */
+    .sheet {
+      --patina: inset 0 0 22mm rgba(96, 62, 24, 0.38);
+      position: relative; isolation: isolate; box-sizing: border-box; width: 297mm; min-height: 419mm; padding: 12mm 13mm;
+      display: flex; flex-direction: column;
+      background-color: #f1e6c8;
+      box-shadow: var(--patina);
+      background-image:
+        radial-gradient(ellipse 80% 75% at 50% 45%, rgba(255, 249, 232, 0.55) 0%, rgba(255, 249, 232, 0) 58%, rgba(118, 80, 36, 0.5) 100%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01' numOctaves='4' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.36 0 0 0 0 0.16 0 0 0 0.38 -0.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.32 0 0 0 0 0.18 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    }
+    .sheet::before {
+      content: ''; position: absolute; inset: 6mm; pointer-events: none;
+      border: 0.5mm solid var(--navy); outline: 0.2mm solid var(--navy); outline-offset: -1.5mm;
+    }
+    @media screen {
+      body { background: #5f5f5f; }
+      .sheet { margin: 10mm auto; box-shadow: var(--patina), 0 2px 14px rgba(0, 0, 0, 0.5); }
+    }
+
+    .identity { display: grid; grid-template-columns: 40mm 1fr 72mm; align-items: center; gap: 6mm; }
+    .identity .boat { width: 40mm; color: var(--navy); }
+    .brand { text-align: center; }
+    .brand .name { display: flex; align-items: center; justify-content: center; gap: 3mm; font-size: 34pt; line-height: 1; letter-spacing: 0.14em; }
+    .brand .trident { width: 8mm; height: 12mm; color: var(--navy); }
+    .brand .voyage { margin-top: 1mm; font-size: 15pt; letter-spacing: 0.2em; }
+    .brand .motto { margin-top: 1mm; font-size: 11pt; font-style: italic; letter-spacing: 0.04em; }
+    .identity blockquote { margin: 0; padding-left: 4mm; border-left: 0.4mm solid var(--rule); font: 500 15pt/1.25 'Dancing Script', cursive; }
+
+    .legband {
+      display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8mm;
+      position: relative; margin: 4mm 6mm 3.5mm; padding: 3mm 7mm; background: var(--navy); color: var(--ivory);
+      outline: 0.2mm solid var(--ivory); outline-offset: -1.5mm;
+    }
+    /* Ribbon tails, folded behind the band. */
+    .legband::before, .legband::after {
+      content: ''; position: absolute; z-index: -1; top: 3mm; bottom: -3mm; width: 12mm; background: #0f2747;
+    }
+    .legband::before { left: -7mm; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 40% 50%); }
+    .legband::after { right: -7mm; clip-path: polygon(0 0, 100% 0, 60% 50%, 100% 100%, 0 100%); }
+    .legband .number { font-family: 'Cinzel', serif; font-size: 26pt; font-weight: 700; line-height: 1; }
+    .legband .number small { display: block; font-size: 9pt; letter-spacing: 0.25em; }
+    .legband .trajet { font-family: 'Cinzel', serif; font-size: 19pt; font-weight: 700; }
+    .legband .theme { margin-top: 1mm; font-size: 10.5pt; letter-spacing: 0.06em; }
+    .legband .facts { text-align: right; font-size: 11pt; line-height: 1.5; }
+    .legband .facts b { font-family: 'Cinzel', serif; font-size: 13pt; }
+
+    .chart { position: relative; display: flex; flex-direction: column; flex: 1 0 85mm; margin: 0 0 3.5mm; }
+    /* The edges turn transparent, so that the map melts into the parchment. */
+    #map {
+      flex: 1; background: transparent; font: inherit;
+      mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent),
+                  linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+      mask-composite: intersect;
+    }
+    .chart figcaption { margin-top: 0.5mm; font-size: 7pt; color: #6b5a3e; text-align: right; }
+    #map .leaflet-tile-pane { filter: brightness(1.05) saturate(0.95); }
+    #map .relief { mix-blend-mode: multiply; }
+    #map .port-label { font: 700 13pt 'EB Garamond', serif; color: var(--navy); text-shadow: 0 0 3px var(--ivory), 0 0 3px var(--ivory), 0 0 3px var(--ivory); }
+    .landmark-label {
+      padding: 0; background: none; border: none; box-shadow: none;
+      font: italic 9.5pt 'EB Garamond', serif; color: var(--ink);
+      text-shadow: 0 0 3px var(--ivory), 0 0 3px var(--ivory);
+    }
+    .landmark-label::before { display: none; }
+    .rose { position: absolute; top: 2mm; right: 3mm; z-index: 1000; width: 32mm; color: var(--navy); }
+    .chart-legend {
+      position: absolute; top: 3mm; left: 3mm; z-index: 1000;
+      padding: 2mm 3mm; border: 0.3mm solid var(--navy); background: rgba(244, 236, 214, 0.92);
+      font-size: 9pt; line-height: 1.5;
+    }
+    .chart-legend div { display: flex; align-items: center; gap: 2mm; }
+    .chart-legend svg { width: 9mm; height: 3mm; flex: none; }
+    .chart-legend .scale span { display: inline-block; height: 1.2mm; border: 0.25mm solid var(--navy); border-top: none; }
+    .chart-legend .disclaimer { margin-top: 1mm; font-style: italic; }
+
+    .panels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+    .panel { padding: 2mm 3mm; border: 0.3mm solid var(--rule); border-radius: 1mm; background: rgba(255, 252, 242, 0.5); }
+    .panel .kicker { display: block; font-size: 7.5pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #6b5a3e; }
+    .panel-head { display: flex; align-items: center; gap: 2.2mm; margin: 0 0 1.5mm; padding-bottom: 1mm; border-bottom: 0.2mm solid var(--rule); }
+    .panel-head svg { flex: none; width: 7.5mm; height: 7.5mm; color: var(--navy); }
+    .panel h3 { margin: 0; font-size: 9.5pt; letter-spacing: 0.08em; text-transform: uppercase; }
+    .panel p { margin: 0 0 1.2mm; }
+    .panel ul { margin: 0 0 1.2mm; padding-left: 4.5mm; }
+    .panel table { width: 100%; margin-bottom: 1mm; border-collapse: collapse; }
+    .panel th, .panel td { padding: 0.4mm 1.5mm 0.4mm 0; border-bottom: 0.2mm solid var(--rule); text-align: left; vertical-align: top; }
+    .panel .note { color: #5a5a5a; font-size: 8.5pt; }
+    .lead::first-letter { float: left; margin: 0.6mm 1.2mm 0 0; font: 700 25pt/0.85 'Cinzel', serif; color: var(--navy); }
+    .verify { padding: 1mm 2mm; border-left: 0.8mm solid var(--navy); background: rgba(23, 54, 93, 0.07); font-weight: 600; }
+    .level { position: relative; padding-left: 5mm; }
+    .level::before {
+      content: ''; position: absolute; left: 0; top: 0.8mm;
+      width: 3.2mm; height: 3.2mm; border-radius: 50%; background: var(--dot);
+    }
+    .go { --dot: var(--go); }
+    .caution { --dot: var(--caution); }
+    .nogo { --dot: var(--nogo); }
+    .panel ul.checklist { padding-left: 0; list-style: none; }
+    .checklist li { position: relative; padding-left: 5mm; }
+    .checklist li::before {
+      content: ''; position: absolute; left: 0; top: 1mm;
+      width: 2.8mm; height: 2.8mm; border: 0.25mm solid var(--navy);
+    }
+    .feedback div { padding-top: 3.5mm; border-bottom: 0.25mm dotted var(--ink); }
+
+    footer { position: relative; margin-top: 3mm; text-align: center; }
+    footer p { margin: 0; }
+    .rope {
+      height: 2.6mm; margin: 0 0 2.5mm; border-radius: 1.3mm;
+      background: repeating-linear-gradient(-60deg, #8a6a3c 0 0.7mm, #c9a76f 0.7mm 1.9mm, #a5824c 1.9mm 2.4mm);
+      box-shadow: 0 0.3mm 0.6mm rgba(60, 40, 15, 0.35);
+    }
+    footer .seal { position: absolute; top: -4mm; right: 6mm; width: 21mm; }
+    footer .thought { font: 500 15pt/1.2 'Dancing Script', cursive; }
+    footer .conclusion { margin-top: 2mm; font-family: 'Cinzel', serif; font-size: 11pt; font-weight: 700; letter-spacing: 0.14em; color: var(--navy); }
+    footer .manual { margin-top: 1mm; font-size: 9pt; letter-spacing: 0.2em; text-transform: uppercase; }
+
+    .error { padding: 6mm; background: #fff0f0; font-size: 12pt; }
+  </style>
+</head>
+<body>
+  <div id="sheet" class="sheet"><p>Chargement du planning…</p></div>
+  <script>
+    const LEVELS = { 'GO': 'go', 'GO avec vigilance': 'caution', 'NO GO': 'nogo' };
+    const COLORS = { vert: 'go', orange: 'caution', rouge: 'nogo' };
+    // Vigilance themes that have their own place in the charter's rubrics; the others are « points de vigilance ».
+    const PLACED_THEMES = ['Distance et temps', 'Lumière', 'Météo', 'Stratégie', 'Décision'];
+    const FEEDBACK_FIELDS = ['Date', 'Météo', 'Courant', 'Trafic', 'Orques / cétacés', 'Approche', 'Formalités', 'Ce que je modifierais'];
+
+    const BOAT_SVG = `<svg class="boat" viewBox="0 0 160 130" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <g stroke-width="1.4">
+          <path d="M80 8 V102"/>
+          <path d="M82 13 C 102 40, 117 70, 124 99 L 82 99 Z"/>
+          <path d="M78 17 C 64 44, 49 72, 34 101 L 78 101 Z"/>
+          <path d="M80 99 H 126"/>
+          <path d="M22 103 H 140 C 133 115, 118 121, 101 121 H 52 C 37 119, 27 112, 22 103 Z"/>
+        </g>
+        <g stroke-width="0.55">
+          <path d="M87 24 C 103 48, 113 72, 118 97 M93 36 C 105 56, 112 76, 115 97 M99 50 C 107 66, 110 82, 112 97"/>
+          <path d="M82 33 L 103 36 M82 52 L 112 56 M82 72 L 118 76"/>
+          <path d="M73 30 C 63 50, 53 72, 44 98 M68 44 C 60 62, 54 80, 50 98"/>
+          <path d="M27 108 H 136 M33 113 H 129"/>
+          <path d="M48 125 H 70 M84 125 H 112 M58 128 H 100"/>
+        </g>
+        <path d="M4 124 q 7 -4 14 0 t 14 0 t 14 0 M114 124 q 7 -4 14 0 t 14 0 t 14 0" stroke-width="0.9"/>
+        <path d="M124 26 q 4 -4 8 0 q 4 -4 8 0 M138 38 q 3 -3 6 0 q 3 -3 6 0" stroke-width="0.9"/>
+      </g>
+      <path d="M80 6 L 93 9.5 L 80 13 Z" fill="currentColor"/>
+    </svg>`;
+
+    // Drawn on a 40 × 60 grid; used beside the title and on the seal.
+    const TRIDENT = `<g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 10 V 57"/><path d="M8 11 V 21 C 8 28, 14 30, 20 30 C 26 30, 32 28, 32 21 V 11"/><path d="M14 36 H 26"/>
+      </g>
+      <g fill="currentColor"><path d="M20 1 L 24 11 H 16 Z"/><path d="M8 3 L 11.5 12 H 4.5 Z"/><path d="M32 3 L 35.5 12 H 28.5 Z"/></g>`;
+
+    const SEAL_SVG = (() => {
+      // A wax blob: a circle whose radius ripples, as wax spreads unevenly.
+      const points = Array.from({ length: 72 }, (_, i) => {
+        const angle = (i / 72) * 2 * Math.PI;
+        const radius = 44 + 2.2 * Math.sin(angle * 9) + 1.2 * Math.sin(angle * 23 + 1);
+        return `${(radius * Math.cos(angle)).toFixed(2)} ${(radius * Math.sin(angle)).toFixed(2)}`;
+      });
+      return `<svg class="seal" viewBox="-50 -50 100 100" aria-hidden="true">
+        <defs><radialGradient id="wax" cx="35%" cy="30%" r="75%">
+          <stop offset="0" stop-color="#3b6aa3"/><stop offset="0.55" stop-color="#1f4675"/><stop offset="1" stop-color="#132c4d"/>
+        </radialGradient></defs>
+        <path d="M${points.join(' L')} Z" fill="url(#wax)"/>
+        <circle r="31" fill="none" stroke="#8fa9cc" stroke-width="1.6"/><circle r="27.5" fill="none" stroke="#8fa9cc" stroke-width="0.6"/>
+        <g transform="translate(-14 -21) scale(0.7)" color="#c9d6ea">${TRIDENT}</g>
+      </svg>`;
+    })();
+
+    const ROSE_SVG = `<svg class="rose" viewBox="-55 -64 110 120" aria-hidden="true">
+      <g fill="none" stroke="currentColor">
+        <circle r="46" stroke-width="0.9"/><circle r="42" stroke-width="0.4"/><circle r="20" stroke-width="0.5"/>
+        ${Array.from({ length: 32 }, (_, i) => `<path transform="rotate(${i * 11.25})" d="M0 -46 V ${i % 2 ? -43.5 : -42}" stroke-width="0.6"/>`).join('')}
+      </g>
+      ${[22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5].map(angle =>
+        `<path transform="rotate(${angle})" d="M0 -24 L2.5 -3 L0 0 L-2.5 -3 Z" fill="#f4ecd6" stroke="currentColor" stroke-width="0.5"/>`).join('')}
+      ${[45, 135, 225, 315].map(angle => `<g transform="rotate(${angle})"><path d="M0 -33 L4.5 -4.5 L0 0 Z" fill="currentColor"/>
+        <path d="M0 -33 L-4.5 -4.5 L0 0 Z" fill="#f4ecd6" stroke="currentColor" stroke-width="0.6"/></g>`).join('')}
+      ${[0, 90, 180, 270].map(angle => `<g transform="rotate(${angle})"><path d="M0 -52 L7 -7 L0 0 Z" fill="currentColor"/>
+        <path d="M0 -52 L-7 -7 L0 0 Z" fill="#f4ecd6" stroke="currentColor" stroke-width="0.7"/></g>`).join('')}
+      <circle r="3" fill="#f4ecd6" stroke="currentColor" stroke-width="0.7"/>
+      <text y="-55" text-anchor="middle" font-family="Cinzel, serif" font-size="11" font-weight="700" fill="currentColor">N</text>
+    </svg>`;
+
+    // Line icons drawn on a 24-unit grid, one per rubric.
+    const ICONS = {
+      target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/>',
+      dividers: '<circle cx="12" cy="4.5" r="1.6"/><path d="M11.2 6 6 21M12.8 6 18 21M8.4 14.5h7.2"/>',
+      sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+      signpost: '<path d="M12 2.5v19M9 21.5h6M12 5h6.5l2 2.5-2 2.5H12M12 12.5H5.5l-2 2.5 2 2.5H12"/>',
+      cloud: '<path d="M7 17h10.5a3.8 3.8 0 0 0 .4-7.6A5.6 5.6 0 0 0 7.2 8.3 4.4 4.4 0 0 0 7 17z"/><path d="M3 21h7M13 21h8"/>',
+      compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>',
+      waves: '<path d="M2 8c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 13c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 18c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2"/>',
+      orca: '<path d="M2.5 14.5c2.5-3.5 7.5-5 12.5-4 2.6.5 4.7 1.9 6.5 3.9-2.3 1.4-5.6 2.3-9.3 2.3-4 0-7.4-.9-9.7-2.2z"/><path d="M10.5 10.6 12 4.5l2.5 5.8M2.5 14.5 1 11.5M2.5 14.5 1 17M15.5 12.4c1 .1 1.9.5 2.5 1.1"/>',
+      ship: '<path d="M3 15.5h18l-2.4 4.5H5.4z"/><path d="M6.5 15.5V12h5v3.5M8 12V8.5h2V12M13 15.5V13h5.5v2.5"/>',
+      warning: '<path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v5"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/>',
+      flag: '<path d="M5.5 21.5V3"/><path d="M5.5 4h12L15 8l2.5 4h-12"/>',
+      anchor: '<circle cx="12" cy="4.5" r="2"/><path d="M12 6.5v15M8 10h8M4.5 13.5a7.5 7.5 0 0 0 15 0M4.5 13.5 3 15.5M4.5 13.5l2.3.8M19.5 13.5l1.5 2M19.5 13.5l-2.3.8"/>',
+      light: '<rect x="8" y="2.5" width="8" height="19" rx="2"/><circle cx="12" cy="7" r="1.7" style="fill: var(--nogo); stroke: none"/>' +
+        '<circle cx="12" cy="12" r="1.7" style="fill: var(--caution); stroke: none"/><circle cx="12" cy="17" r="1.7" style="fill: var(--go); stroke: none"/>',
+      notebook: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8.5 3v18M11.5 8h5M11.5 12h5M11.5 16h3"/>',
+    };
+    const THEME_ICONS = { 'Marées et courants': 'waves', 'Orques': 'orca', 'Trafic': 'ship' };
+
+    const sheet = document.getElementById('sheet');
+
+    // An empty « Étape » applies the row to every leg.
+    function forLeg(rows, number) {
+      return rows.filter(row => row['Étape'] == null || row['Étape'] === '' || Number(row['Étape']) === number);
+    }
+
+    function dotClass(classes, value, sheetName) {
+      if (!classes[value]) throw new Error(`Valeur inconnue dans l'onglet « ${sheetName} » : « ${value} ».`);
+      return classes[value];
+    }
+
+    // The kicker names the charter rubric the panel belongs to.
+    function panel(icon, kicker, title, body, className = '') {
+      return body
+        ? `<section class="panel ${className}"><header class="panel-head">` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[icon]}</svg>` +
+          `<div><span class="kicker">${escapeHtml(kicker)}</span><h3>${escapeHtml(title)}</h3></div></header>${body}</section>`
+        : '';
+    }
+
+    function overlaps(a, b) {
+      return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    }
+
+    // A landmark's name goes on the first free side; where every side covers another name or the
+    // map's furniture, the name is dropped and the dot stays.
+    function labelLandmarks(map, landmarks) {
+      const taken = [...map.getContainer().parentElement.querySelectorAll('.port-label, .chart-legend, .rose')]
+        .map(element => element.getBoundingClientRect());
+      for (const { marker, name } of landmarks) {
+        ['bottom', 'top', 'right', 'left'].some(direction => {
+          marker.bindTooltip(escapeHtml(name), { permanent: true, direction, className: 'landmark-label' });
+          const box = marker.getTooltip().getElement().getBoundingClientRect();
+          if (taken.some(other => overlaps(box, other))) {
+            marker.unbindTooltip();
+            return false;
+          }
+          taken.push(box);
+          return true;
+        });
+      }
+    }
+
+    function list(texts, className) {
+      return texts.length ? `<ul class="${className}">${texts.map(text => `<li>${escapeHtml(text)}</li>`).join('')}</ul>` : '';
+    }
+
+    function statements(rows) {
+      let html = '';
+      let bullets = [];
+      const flush = () => {
+        html += list(bullets, '');
+        bullets = [];
+      };
+      for (const row of rows) {
+        if (row.Type === 'Consigne') {
+          bullets.push(row.Texte);
+          continue;
+        }
+        flush();
+        const text = escapeHtml(row.Texte);
+        if (row.Type === 'Constat') html += `<p>${text}</p>`;
+        else if (row.Type === 'À vérifier') html += `<p class="verify">${text}</p>`;
+        else html += `<p class="level ${dotClass(LEVELS, row.Type, 'Vigilance')}"><b>${escapeHtml(row.Type)}</b> — ${text}</p>`;
+      }
+      flush();
+      return html;
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    }
+
+    function formatDuration(milliseconds) {
+      const minutes = Math.round(milliseconds / 60_000);
+      return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+    }
+
+    // A time cell holds a fraction of a day.
+    function formatClock(value) {
+      if (typeof value !== 'number') return String(value);
+      const minutes = Math.round(value * 1440);
+      return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    }
+
+    function sunTable(places) {
+      // Noon UTC keeps SunCalc on the intended day.
+      const times = places.map(({ port, day }) => SunCalc.getTimes(new Date(excelDate(day).getTime() + 43_200_000), ...port.at));
+      const row = (label, cells) => `<tr><th>${label}</th>${cells.map(cell => `<td>${cell}</td>`).join('')}</tr>`;
+      return '<table>' +
+        `<tr><th></th>${places.map(({ name, day }) => `<th>${escapeHtml(name)}<br>${escapeHtml(formatDate(day))}</th>`).join('')}</tr>` +
+        row('Lever', times.map(time => formatTime(time.sunrise))) +
+        row('Coucher', times.map(time => formatTime(time.sunset))) +
+        row('Jour', times.map(time => formatDuration(time.sunset - time.sunrise))) +
+        '</table><p class="note">Heures UTC, calculées pour la date et la position.</p>';
+    }
+
+    // Leaflet's own scale knows only metric and imperial units.
+    function nauticalScale(map) {
+      const y = map.getSize().y / 2;
+      const metresPerPixel = map.distance(map.containerPointToLatLng([0, y]), map.containerPointToLatLng([100, y])) / 100;
+      const miles = [5, 10, 20, 25, 50, 100, 200].find(value => value * 1852 / metresPerPixel >= 60) ?? 200;
+      return `<div class="scale"><span style="width: ${(miles * 1852 / metresPerPixel).toFixed(0)}px"></span>&nbsp;${miles} milles nautiques</div>`;
+    }
+
+    function legendItem(symbol, label) {
+      return `<div><svg viewBox="0 0 34 12">${symbol}</svg>${escapeHtml(label)}</div>`;
+    }
+
+    function drawChart(voyage, index, number) {
+      const from = voyage.ports[voyage.stops[index]];
+      const to = voyage.ports[voyage.stops[index + 1]];
+      const navy = routeColor();
+      // Credits go in the caption: inside the map they would fade with its edges.
+      const map = L.map('map', { zoomControl: false, attributionControl: false });
+      // Two keyless Esri layers: the ocean floor, and the land relief multiplied over it, whose flat sea
+      // then takes the depth shading of the layer beneath.
+      const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services';
+      const layers = [
+        L.tileLayer(`${esri}/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 13 }),
+        L.tileLayer(`${esri}/World_Physical_Map/MapServer/tile/{z}/{y}/{x}`, { maxNativeZoom: 8, maxZoom: 13, className: 'relief' }),
+      ];
+      layers.forEach(layer => layer.addTo(map));
+      const line = drawLeg(map, voyage, index);
+      map.fitBounds(line.getBounds(), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 60] });
+      // An ivory casing keeps the route and the ports readable over the dark sea. The route only exists
+      // once the map has a view, hence after fitBounds.
+      L.polyline(line.getLatLngs(), { color: '#f4ecd6', weight: 8, opacity: 0.9 }).addTo(map);
+      line.setStyle({ weight: 4 }).bringToFront();
+      const landmarks = voyage.waypoints.filter(point => point.leg === number && point.name).map(point => ({
+        name: point.name,
+        marker: L.circleMarker(point.at, { radius: 2.5, color: navy, weight: 1, fillColor: '#f4ecd6', fillOpacity: 1 }).addTo(map),
+      }));
+      for (const name of [voyage.stops[index], voyage.stops[index + 1]]) {
+        L.circleMarker(voyage.ports[name].at, { radius: 10, stroke: false, fillColor: '#f4ecd6', fillOpacity: 0.9 }).addTo(map);
+        drawPort(map, name, voyage.ports[name]).setRadius(7);
+      }
+
+      const approximate = from.approximate || to.approximate;
+      const chart = map.getContainer().parentElement;
+      L.DomUtil.create('div', 'chart-legend', chart).innerHTML =
+        legendItem(`<line x1="0" y1="6" x2="34" y2="6" stroke="#f4ecd6" stroke-width="7"/>` +
+          `<line x1="0" y1="6" x2="34" y2="6" stroke="${navy}" stroke-width="3.5"${approximate ? ' stroke-dasharray="6 6"' : ''}/>`,
+          approximate ? 'Itinéraire vers ou depuis un port à définir' : 'Itinéraire indicatif') +
+        legendItem(`<circle cx="17" cy="6" r="4.5" fill="${approximate ? '#f4ecd6' : navy}" stroke="${navy}" stroke-width="1.5"/>`,
+          approximate ? 'Port d\'escale ou port à définir' : 'Port d\'escale') +
+        legendItem(`<circle cx="17" cy="6" r="2.5" fill="#f4ecd6" stroke="${navy}" stroke-width="1"/>`, 'Repère de route') +
+        nauticalScale(map) +
+        '<div class="disclaimer">Carte illustrative : ne remplace pas une carte nautique officielle.</div>';
+
+      chart.insertAdjacentHTML('beforeend', ROSE_SVG);
+      labelLandmarks(map, landmarks);
+
+      // Lets a headless browser wait for the tiles before printing.
+      Promise.all(layers.map(layer => new Promise(resolve => layer.once('load', resolve))))
+        .then(() => { document.documentElement.dataset.ready = 'true'; });
+    }
+
+    function render(workbook, requested) {
+      const voyage = readVoyage(workbook);
+      const number = Number(requested);
+      const index = voyage.legs.findIndex(leg => Number(leg['Étape']) === number);
+      if (index < 0) {
+        throw new Error(`Étape « ${requested ?? ''} » absente du planning. Étapes : ${voyage.legs.map(leg => leg['Étape']).join(', ')}.`);
+      }
+      const leg = voyage.legs[index];
+      const from = voyage.stops[index];
+      const to = voyage.stops[index + 1];
+      const details = readTable(workbook, 'Détails étapes', 'Étape').find(row => Number(row['Étape']) === number) ?? {};
+      const themes = Map.groupBy(forLeg(readTable(workbook, 'Vigilance', 'Étape'), number), row => row['Thème']);
+      const options = forLeg(readTable(workbook, 'Options de route', 'Étape'), number);
+      const checklists = forLeg(readTable(workbook, 'Check-lists', 'Étape'), number);
+      const parameters = Object.fromEntries(readTable(workbook, 'Paramètres', 'Clé').map(row => [row['Clé'], row.Valeur]));
+      const checklist = name => list(checklists.filter(row => row.Liste === name).map(row => row.Texte), 'checklist');
+      const zones = String(details.Zones ?? '').split(',').map(zone => zone.trim()).filter(Boolean);
+      const [name, ...voyageName] = String(voyage.title ?? '').split(' — ');
+      const arrivalWindow = details['Arrivée au plus tôt'] != null && details['Arrivée au plus tard'] != null
+        ? `<p class="verify">Fenêtre d'arrivée souhaitée : ${escapeHtml(formatClock(details['Arrivée au plus tôt']))}` +
+          ` – ${escapeHtml(formatClock(details['Arrivée au plus tard']))}</p>`
+        : '';
+
+      // In the order of the charter's rubrics; a rubric with nothing to say for this leg has no panel.
+      const panels = [
+        panel('target', 'Données et objectif', 'Objectif', details.Objectif ? `<p class="lead">${escapeHtml(details.Objectif)}</p>` : ''),
+        panel('dividers', 'Données et objectif', 'Distance et temps',
+          `<p><b>Distance estimée :</b> ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))}</p>` +
+          `<p><b>Navigation théorique à 5 nd :</b> ${escapeHtml(leg['Navigation théorique à 5 nd'])}</p>` +
+          statements(themes.get('Distance et temps') ?? [])),
+        panel('sun', 'Données et objectif', 'Lumière',
+          sunTable([
+            { name: from, port: voyage.ports[from], day: leg['Départ prévu'] },
+            { name: to, port: voyage.ports[to], day: leg['Arrivée prévue'] },
+          ]) + arrivalWindow + statements(themes.get('Lumière') ?? [])),
+        panel('signpost', 'Variantes de route', 'Options', options.map(row =>
+          `<p class="level ${dotClass(COLORS, row.Couleur, 'Options de route')}"><b>${escapeHtml(row.Option)} — ${escapeHtml(row['Intitulé'])}</b><br>` +
+          `${escapeHtml(row.Description)}</p>`).join('')),
+        panel('cloud', 'Météo', 'Conditions', statements(themes.get('Météo') ?? [])),
+        panel('compass', 'Stratégie', 'Plan de route', statements(themes.get('Stratégie') ?? [])),
+        ...[...themes].filter(([theme]) => !PLACED_THEMES.includes(theme))
+          .map(([theme, rows]) => panel(THEME_ICONS[theme] ?? 'warning', 'Point de vigilance', theme, statements(rows))),
+        panel('flag', 'Checklist', 'Formalités', checklist('Formalités')),
+        panel('anchor', 'Checklist', 'Départ', checklist('Départ')),
+        panel('light', 'Décision', 'GO / NO GO', statements(themes.get('Décision') ?? [])),
+        panel('anchor', 'Checklist', 'Arrivée', checklist('Arrivée')),
+        panel('notebook', 'Après l\'étape', 'Retour d\'expérience', FEEDBACK_FIELDS.map(field => `<div>${escapeHtml(field)} :</div>`).join(''), 'feedback'),
+      ];
+
+      sheet.innerHTML =
+        `<header class="identity">${BOAT_SVG}` +
+        `<div class="brand"><div class="name cinzel"><svg class="trident" viewBox="0 0 40 60" aria-hidden="true">${TRIDENT}</svg>` +
+        `${escapeHtml(name)}</div>` +
+        `<div class="voyage cinzel">${escapeHtml(voyageName.join(' — '))}</div>` +
+        `<div class="motto">${escapeHtml(parameters.Devise)}</div></div>` +
+        (details.Citation ? `<blockquote>« ${escapeHtml(details.Citation)} »</blockquote>` : '<div></div>') + `</header>` +
+        `<section class="legband"><div class="number"><small>ÉTAPE</small>${escapeHtml(leg['Étape'])}</div>` +
+        `<div><div class="trajet">${escapeHtml(leg['Zone / itinéraire'])}</div>` +
+        `<div class="theme">${[details.Titre, ...zones].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>` +
+        `<div class="facts">${escapeHtml(formatDate(leg['Départ prévu']))} – ${escapeHtml(formatDate(leg['Arrivée prévue']))}<br>` +
+        `<b>${escapeHtml(formatDistance(leg['Distance estimée (NM)']))}</b></div></section>` +
+        `<figure class="chart"><div id="map"></div><figcaption>Fonds de carte : Esri — GEBCO, NOAA, CHS, OSU, UNH, CSUMB, ` +
+        `National Geographic, DeLorme, NAVTEQ, US National Park Service · Leaflet</figcaption></figure>` +
+        `<div class="panels">${panels.join('')}</div>` +
+        `<footer><div class="rope"></div>${SEAL_SVG}${details['Pensée du quart'] ? `<p class="thought">« ${escapeHtml(details['Pensée du quart'])} »</p>` : ''}` +
+        `<p class="conclusion">${escapeHtml(parameters['Pied de page'])}</p>` +
+        `<p class="manual">${escapeHtml(voyage.title)}</p></footer>`;
+
+      drawChart(voyage, index, number);
+    }
+
+    async function start() {
+      try {
+        render(await fetchWorkbook(), new URLSearchParams(location.search).get('etape'));
+      } catch (error) {
+        sheet.innerHTML = `<p class="error">Impossible de produire la fiche : ${escapeHtml(error.message)}</p>`;
+        document.documentElement.dataset.ready = 'error';
+      }
+    }
+
+    start();
+  </script>
+</body>
+</html>

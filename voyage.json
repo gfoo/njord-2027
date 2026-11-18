@@ -1,0 +1,132 @@
+{
+  "title": "NJORD — WAY TO NORWAY 2027",
+  "workbook": "NJORD_Planning_repartition_equipiers_2027.xlsx",
+  "legs": [
+    {
+      "Étape": "01",
+      "Départ prévu": "2027-04-01",
+      "Arrivée prévue": "2027-04-07",
+      "Zone / itinéraire": "Porto Ottiolu → Mahón",
+      "Embarquement hypothétique": "Porto Ottiolu (Sardaigne)",
+      "Débarquement hypothétique": "Port Mahón (Minorque)",
+      "Distance estimée (NM)": "190"
+    },
+    {
+      "Étape": "02",
+      "Départ prévu": "2027-04-08",
+      "Arrivée prévue": "2027-04-15",
+      "Zone / itinéraire": "Mahón → Carthagène",
+      "Embarquement hypothétique": "Port Mahón",
+      "Débarquement hypothétique": "Carthagène",
+      "Distance estimée (NM)": "280"
+    },
+    {
+      "Étape": "03",
+      "Départ prévu": "2027-04-16",
+      "Arrivée prévue": "2027-04-23",
+      "Zone / itinéraire": "Carthagène → Cadix",
+      "Embarquement hypothétique": "Carthagène",
+      "Débarquement hypothétique": "Cadix",
+      "Distance estimée (NM)": "~400"
+    },
+    {
+      "Étape": "04",
+      "Départ prévu": "2027-04-24",
+      "Arrivée prévue": "2027-04-28",
+      "Zone / itinéraire": "Cadix → Lagos",
+      "Embarquement hypothétique": "Cadix",
+      "Débarquement hypothétique": "Lagos (Portugal)",
+      "Distance estimée (NM)": "180"
+    },
+    {
+      "Étape": "05",
+      "Départ prévu": "2027-04-29",
+      "Arrivée prévue": "2027-05-08",
+      "Zone / itinéraire": "Lagos → A Coruña",
+      "Embarquement hypothétique": "Lagos",
+      "Débarquement hypothétique": "A Coruña",
+      "Distance estimée (NM)": "~560"
+    },
+    {
+      "Étape": "06",
+      "Départ prévu": "2027-05-09",
+      "Arrivée prévue": "2027-05-17",
+      "Zone / itinéraire": "A Coruña → Falmouth",
+      "Embarquement hypothétique": "A Coruña",
+      "Débarquement hypothétique": "Falmouth",
+      "Distance estimée (NM)": "~450"
+    },
+    {
+      "Étape": "07",
+      "Départ prévu": "2027-05-18",
+      "Arrivée prévue": "2027-05-24",
+      "Zone / itinéraire": "Falmouth → côte est anglaise",
+      "Embarquement hypothétique": "Falmouth",
+      "Débarquement hypothétique": "Port à préciser sur la côte est anglaise",
+      "Distance estimée (NM)": "~300"
+    },
+    {
+      "Étape": "08",
+      "Départ prévu": "2027-05-25",
+      "Arrivée prévue": "2027-05-28",
+      "Zone / itinéraire": "Côte est anglaise → IJmuiden",
+      "Embarquement hypothétique": "Port à confirmer sur la côte est anglaise",
+      "Débarquement hypothétique": "IJmuiden",
+      "Distance estimée (NM)": "~120"
+    },
+    {
+      "Étape": "09",
+      "Départ prévu": "2027-05-29",
+      "Arrivée prévue": "2027-06-03",
+      "Zone / itinéraire": "IJmuiden → Terschelling",
+      "Embarquement hypothétique": "IJmuiden",
+      "Débarquement hypothétique": "West-Terschelling",
+      "Distance estimée (NM)": "~100"
+    },
+    {
+      "Étape": "10",
+      "Départ prévu": "2027-06-04",
+      "Arrivée prévue": "2027-06-10",
+      "Zone / itinéraire": "Terschelling → Cuxhaven",
+      "Embarquement hypothétique": "West-Terschelling",
+      "Débarquement hypothétique": "Cuxhaven",
+      "Distance estimée (NM)": "~180"
+    },
+    {
+      "Étape": "11",
+      "Départ prévu": "2027-06-11",
+      "Arrivée prévue": "2027-06-15",
+      "Zone / itinéraire": "Cuxhaven → canal de Kiel → Laboe",
+      "Embarquement hypothétique": "Cuxhaven / Brunsbüttel selon organisation du canal",
+      "Débarquement hypothétique": "Laboe (Kieler Förde)",
+      "Distance estimée (NM)": "~50 NM de canal, approches en sus"
+    },
+    {
+      "Étape": "12",
+      "Départ prévu": "2027-06-16",
+      "Arrivée prévue": "2027-06-23",
+      "Zone / itinéraire": "Laboe → détroits danois",
+      "Embarquement hypothétique": "Laboe",
+      "Débarquement hypothétique": "Port danois à définir selon météo",
+      "Distance estimée (NM)": "~150–200"
+    },
+    {
+      "Étape": "13",
+      "Départ prévu": "2027-06-24",
+      "Arrivée prévue": "2027-06-30",
+      "Zone / itinéraire": "Détroits danois → côte sud de Norvège",
+      "Embarquement hypothétique": "Port danois confirmé avant départ",
+      "Débarquement hypothétique": "Port de la côte sud norvégienne à confirmer",
+      "Distance estimée (NM)": "~150"
+    },
+    {
+      "Étape": "14",
+      "Départ prévu": "2027-07-01",
+      "Arrivée prévue": "2027-07-15",
+      "Zone / itinéraire": "Côte sud de Norvège → Bergen",
+      "Embarquement hypothétique": "Port norvégien de départ à confirmer",
+      "Débarquement hypothétique": "Bergen",
+      "Distance estimée (NM)": "~200–250"
+    }
+  ]
+}
