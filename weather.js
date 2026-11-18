@@ -33,8 +33,7 @@ const SEASONS = [
   { label: 'Hiver', months: 'déc.–févr.', color: '#2a78d6', dash: '' },
 ];
 
-const DAY = 86_400_000;
-const isoDay = date => date.toISOString().slice(0, 10);
+const HOUR = 3_600_000;
 const sectorOf = direction => Math.round(direction / 22.5) % 16;
 const bandOf = speed => SPEED_BANDS.findIndex(band => speed < band.max);
 // Month 0–11 to season 0–3, March opening spring.
@@ -97,28 +96,61 @@ async function currentWind(points) {
   return [data].flat().map(location => location.current);
 }
 
-// Kept for the session, so that moving the year slider only fetches the years not seen yet.
-const archives = new Map();
+// Kept in the browser across page loads: Open-Meteo's quota is counted per connection and per day,
+// and much of what the page asks for has been asked before. A private window may refuse storage;
+// the page then works without it.
+const STORE_PREFIX = 'njord.';
 
-// Open-Meteo counts one call per 14 days of data asked for one point.
-function fetchArchive(at, [start, end], pacing) {
+function storeGet(key) {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_PREFIX + key));
+  } catch {
+    return null;
+  }
+}
+
+function storeDrop(test) {
+  try {
+    Object.keys(localStorage)
+      .filter(key => key.startsWith(STORE_PREFIX) && test(key.slice(STORE_PREFIX.length)))
+      .forEach(key => localStorage.removeItem(key));
+  } catch {
+    // Storage refused: nothing was kept, nothing to drop.
+  }
+}
+
+function storeSet(key, value) {
+  const text = JSON.stringify(value);
+  try {
+    localStorage.setItem(STORE_PREFIX + key, text);
+  } catch {
+    // Storage full: the forecasts go first, as they expire within hours anyway.
+    storeDrop(stored => stored.startsWith('wind|'));
+    try {
+      localStorage.setItem(STORE_PREFIX + key, text);
+    } catch {
+      // Still refused: the result stays in memory for this visit only.
+    }
+  }
+}
+
+// The archives' grid is about 0.1°: clicks closer than that get the same rose, and share it.
+const roseCell = ([lat, lon]) => [Number(lat.toFixed(1)), Number(lon.toFixed(1))];
+
+// Open-Meteo counts one call per 14 days of data asked for one point: 27 for a year.
+const ARCHIVE_YEAR_COST = 27;
+
+function fetchArchive(at, year, pacing) {
   const url = `${ARCHIVE_URL}?${new URLSearchParams({
-    latitude: at[0].toFixed(3),
-    longitude: at[1].toFixed(3),
-    start_date: isoDay(start),
-    end_date: isoDay(end),
+    latitude: at[0].toFixed(1),
+    longitude: at[1].toFixed(1),
+    start_date: `${year}-01-01`,
+    end_date: `${year}-12-31`,
     hourly: 'wind_speed_10m,wind_direction_10m',
     wind_speed_unit: 'kn',
     timezone: 'UTC',
   })}`;
-  if (!archives.has(url)) {
-    const days = Math.round((end - start) / DAY) + 1;
-    archives.set(url, fetchJson(url, Math.ceil(days / 14), pacing).catch(error => {
-      archives.delete(url);
-      throw error;
-    }));
-  }
-  return archives.get(url);
+  return fetchJson(url, ARCHIVE_YEAR_COST, pacing);
 }
 
 // Hourly forecast at every point, in one request: one series per point, from today 00:00 UTC.
@@ -133,40 +165,109 @@ async function windForecast(points, model, pacing) {
     models: model,
   });
   const data = await fetchJson(`${FORECAST_URL}?${params}`, points.length, pacing);
-  return [data].flat().map(location => location.hourly);
+  const fetched = Date.now();
+  return [data].flat().map(({ hourly }) => ({
+    start: Date.parse(`${hourly.time[0]}Z`),
+    speed: hourly.wind_speed_10m,
+    direction: hourly.wind_direction_10m,
+    fetched,
+  }));
 }
+
+// A forecast is kept three hours, and only while it starts at today's midnight (UTC): later, the
+// models have moved on and the +72 h slider would reach past the kept series.
+const FORECAST_KEEP = 3 * HOUR;
+const forecasts = new Map();
+const forecastKey = (model, [lat, lon]) => `wind|${model}|${lat},${lon}`;
+
+function isFresh(series) {
+  const now = new Date();
+  return now - series.fetched < FORECAST_KEEP &&
+    series.start === Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+function cachedForecast(model, point) {
+  const key = forecastKey(model, point);
+  const series = forecasts.get(key) ?? storeGet(key);
+  if (!series || !isFresh(series)) return null;
+  forecasts.set(key, series);
+  return series;
+}
+
+function keepForecast(model, point, series) {
+  forecasts.set(forecastKey(model, point), series);
+  storeSet(forecastKey(model, point), series);
+}
+
+function dropForecasts() {
+  forecasts.clear();
+  storeDrop(key => key.startsWith('wind|'));
+}
+
+storeDrop(key => key.startsWith('wind|') && !isFresh(storeGet(key) ?? {}));
 
 const emptyTally = () => ({ counts: SECTORS.map(() => SPEED_BANDS.map(() => 0)), total: 0, speedSum: 0 });
 
-// Hourly wind at one point over the last full calendar years, tallied by direction and force for
-// each season and for the whole year. One request per year, so that a longer span reuses a shorter.
+function addTally(sum, { counts, total, speedSum }) {
+  counts.forEach((sector, s) => sector.forEach((n, band) => { sum.counts[s][band] += n; }));
+  sum.total += total;
+  sum.speedSum += speedSum;
+  return sum;
+}
+
+// One year of hourly wind, tallied by season, direction and force.
+function seasonTallies({ hourly }) {
+  const seasons = SEASONS.map(emptyTally);
+  hourly.time.forEach((time, i) => {
+    const speed = hourly.wind_speed_10m[i];
+    const direction = hourly.wind_direction_10m[i];
+    if (speed == null || direction == null) return;
+    const tally = seasons[seasonOf(Number(time.slice(5, 7)) - 1)];
+    tally.counts[sectorOf(direction)][bandOf(speed)] += 1;
+    tally.total += 1;
+    tally.speedSum += speed;
+  });
+  return seasons;
+}
+
+// A past year's tallies never change: they are kept for good, per grid cell and year. A request
+// still under way is shared, so that two clicks in one cell ask once.
+const yearTallies = new Map();
+
+function yearTally(cell, year, pacing) {
+  const key = `rose|${cell}|${year}`;
+  if (!yearTallies.has(key)) {
+    const stored = storeGet(key);
+    yearTallies.set(key, stored ? Promise.resolve(stored) : fetchArchive(cell, year, pacing)
+      .then(response => {
+        const seasons = seasonTallies(response);
+        storeSet(key, seasons);
+        return seasons;
+      })
+      .catch(error => {
+        yearTallies.delete(key);
+        throw error;
+      }));
+  }
+  return yearTallies.get(key);
+}
+
+// The wind of the last full calendar years in the clicked spot's grid cell, by season and over the
+// whole year.
 async function windClimate(at, years, onProgress, pacing) {
+  const cell = roseCell(at);
   const lastYear = new Date().getUTCFullYear() - 1;
   const firstYear = lastYear - years + 1;
   let done = 0;
-  const responses = await Promise.all(Array.from({ length: years }, (_, i) =>
-    fetchArchive(at, [new Date(Date.UTC(firstYear + i, 0, 1)), new Date(Date.UTC(firstYear + i, 11, 31))], pacing)
-      .then(response => {
-        onProgress?.(++done, years);
-        return response;
-      })));
-
-  const seasons = SEASONS.map(emptyTally);
-  const year = emptyTally();
-  for (const { hourly } of responses) {
-    hourly.time.forEach((time, i) => {
-      const speed = hourly.wind_speed_10m[i];
-      const direction = hourly.wind_direction_10m[i];
-      if (speed == null || direction == null) return;
-      for (const tally of [seasons[seasonOf(Number(time.slice(5, 7)) - 1)], year]) {
-        tally.counts[sectorOf(direction)][bandOf(speed)] += 1;
-        tally.total += 1;
-        tally.speedSum += speed;
-      }
-    });
-  }
+  const perYear = await Promise.all(Array.from({ length: years }, (_, i) =>
+    yearTally(cell, firstYear + i, pacing).then(seasons => {
+      onProgress?.(++done, years);
+      return seasons;
+    })));
+  const seasons = SEASONS.map((_, s) => perYear.reduce((sum, yearSeasons) => addTally(sum, yearSeasons[s]), emptyTally()));
+  const year = seasons.reduce(addTally, emptyTally());
   if (!year.total) throw new Error('aucune donnée pour ce point');
-  return { seasons, year, span: years === 1 ? `en ${lastYear}` : `de ${firstYear} à ${lastYear} (${years} ans)` };
+  return { cell, seasons, year, span: years === 1 ? `en ${lastYear}` : `de ${firstYear} à ${lastYear} (${years} ans)` };
 }
 
 const sectorShares = ({ counts, total }) => counts.map(sector => sector.reduce((a, b) => a + b, 0) / total);

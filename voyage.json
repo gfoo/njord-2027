@@ -1,6 +1,6 @@
 {
   "title": "NJORD — WAY TO NORWAY 2027",
-  "workbook": "NJORD_Planning_repartition_equipiers_2027.xlsx",
+  "workbook": "NJORD_Planning_repartition_equipiers_2027_v02.xlsx",
   "legs": [
     {
       "Étape": "01",
@@ -9,7 +9,15 @@
       "Zone / itinéraire": "Porto Ottiolu → Mahón",
       "Embarquement hypothétique": "Porto Ottiolu (Sardaigne)",
       "Débarquement hypothétique": "Port Mahón (Minorque)",
-      "Distance estimée (NM)": "190"
+      "Distance estimée (NM)": "190",
+      "Position embarquement": [
+        40.737,
+        9.713
+      ],
+      "Position débarquement": [
+        39.888,
+        4.265
+      ]
     },
     {
       "Étape": "02",
@@ -18,7 +26,15 @@
       "Zone / itinéraire": "Mahón → Carthagène",
       "Embarquement hypothétique": "Port Mahón",
       "Débarquement hypothétique": "Carthagène",
-      "Distance estimée (NM)": "280"
+      "Distance estimée (NM)": "280",
+      "Position embarquement": [
+        39.888,
+        4.265
+      ],
+      "Position débarquement": [
+        37.598,
+        -0.983
+      ]
     },
     {
       "Étape": "03",
@@ -27,7 +43,15 @@
       "Zone / itinéraire": "Carthagène → Cadix",
       "Embarquement hypothétique": "Carthagène",
       "Débarquement hypothétique": "Cadix",
-      "Distance estimée (NM)": "~400"
+      "Distance estimée (NM)": "~400",
+      "Position embarquement": [
+        37.598,
+        -0.983
+      ],
+      "Position débarquement": [
+        36.537,
+        -6.285
+      ]
     },
     {
       "Étape": "04",
@@ -36,7 +60,15 @@
       "Zone / itinéraire": "Cadix → Lagos",
       "Embarquement hypothétique": "Cadix",
       "Débarquement hypothétique": "Lagos (Portugal)",
-      "Distance estimée (NM)": "180"
+      "Distance estimée (NM)": "180",
+      "Position embarquement": [
+        36.537,
+        -6.285
+      ],
+      "Position débarquement": [
+        37.107,
+        -8.674
+      ]
     },
     {
       "Étape": "05",
@@ -45,7 +77,15 @@
       "Zone / itinéraire": "Lagos → A Coruña",
       "Embarquement hypothétique": "Lagos",
       "Débarquement hypothétique": "A Coruña",
-      "Distance estimée (NM)": "~560"
+      "Distance estimée (NM)": "~560",
+      "Position embarquement": [
+        37.107,
+        -8.674
+      ],
+      "Position débarquement": [
+        43.367,
+        -8.392
+      ]
     },
     {
       "Étape": "06",
@@ -54,7 +94,15 @@
       "Zone / itinéraire": "A Coruña → Falmouth",
       "Embarquement hypothétique": "A Coruña",
       "Débarquement hypothétique": "Falmouth",
-      "Distance estimée (NM)": "~450"
+      "Distance estimée (NM)": "~450",
+      "Position embarquement": [
+        43.367,
+        -8.392
+      ],
+      "Position débarquement": [
+        50.153,
+        -5.06
+      ]
     },
     {
       "Étape": "07",
@@ -63,7 +111,15 @@
       "Zone / itinéraire": "Falmouth → côte est anglaise",
       "Embarquement hypothétique": "Falmouth",
       "Débarquement hypothétique": "Port à préciser sur la côte est anglaise",
-      "Distance estimée (NM)": "~300"
+      "Distance estimée (NM)": "~300",
+      "Position embarquement": [
+        50.153,
+        -5.06
+      ],
+      "Position débarquement": [
+        51.946,
+        1.288
+      ]
     },
     {
       "Étape": "08",
@@ -72,7 +128,15 @@
       "Zone / itinéraire": "Côte est anglaise → IJmuiden",
       "Embarquement hypothétique": "Port à confirmer sur la côte est anglaise",
       "Débarquement hypothétique": "IJmuiden",
-      "Distance estimée (NM)": "~120"
+      "Distance estimée (NM)": "~120",
+      "Position embarquement": [
+        51.946,
+        1.288
+      ],
+      "Position débarquement": [
+        52.463,
+        4.583
+      ]
     },
     {
       "Étape": "09",
@@ -81,7 +145,15 @@
       "Zone / itinéraire": "IJmuiden → Terschelling",
       "Embarquement hypothétique": "IJmuiden",
       "Débarquement hypothétique": "West-Terschelling",
-      "Distance estimée (NM)": "~100"
+      "Distance estimée (NM)": "~100",
+      "Position embarquement": [
+        52.463,
+        4.583
+      ],
+      "Position débarquement": [
+        53.358,
+        5.22
+      ]
     },
     {
       "Étape": "10",
@@ -90,7 +162,15 @@
       "Zone / itinéraire": "Terschelling → Cuxhaven",
       "Embarquement hypothétique": "West-Terschelling",
       "Débarquement hypothétique": "Cuxhaven",
-      "Distance estimée (NM)": "~180"
+      "Distance estimée (NM)": "~180",
+      "Position embarquement": [
+        53.358,
+        5.22
+      ],
+      "Position débarquement": [
+        53.868,
+        8.71
+      ]
     },
     {
       "Étape": "11",
@@ -99,7 +179,15 @@
       "Zone / itinéraire": "Cuxhaven → canal de Kiel → Laboe",
       "Embarquement hypothétique": "Cuxhaven / Brunsbüttel selon organisation du canal",
       "Débarquement hypothétique": "Laboe (Kieler Förde)",
-      "Distance estimée (NM)": "~50 NM de canal, approches en sus"
+      "Distance estimée (NM)": "~50 NM de canal, approches en sus",
+      "Position embarquement": [
+        53.868,
+        8.71
+      ],
+      "Position débarquement": [
+        54.405,
+        10.22
+      ]
     },
     {
       "Étape": "12",
@@ -108,7 +196,15 @@
       "Zone / itinéraire": "Laboe → détroits danois",
       "Embarquement hypothétique": "Laboe",
       "Débarquement hypothétique": "Port danois à définir selon météo",
-      "Distance estimée (NM)": "~150–200"
+      "Distance estimée (NM)": "~150–200",
+      "Position embarquement": [
+        54.405,
+        10.22
+      ],
+      "Position débarquement": [
+        56.716,
+        11.511
+      ]
     },
     {
       "Étape": "13",
@@ -117,7 +213,15 @@
       "Zone / itinéraire": "Détroits danois → côte sud de Norvège",
       "Embarquement hypothétique": "Port danois confirmé avant départ",
       "Débarquement hypothétique": "Port de la côte sud norvégienne à confirmer",
-      "Distance estimée (NM)": "~150"
+      "Distance estimée (NM)": "~150",
+      "Position embarquement": [
+        56.716,
+        11.511
+      ],
+      "Position débarquement": [
+        58.144,
+        7.995
+      ]
     },
     {
       "Étape": "14",
@@ -126,7 +230,15 @@
       "Zone / itinéraire": "Côte sud de Norvège → Bergen",
       "Embarquement hypothétique": "Port norvégien de départ à confirmer",
       "Débarquement hypothétique": "Bergen",
-      "Distance estimée (NM)": "~200–250"
+      "Distance estimée (NM)": "~200–250",
+      "Position embarquement": [
+        58.144,
+        7.995
+      ],
+      "Position débarquement": [
+        60.393,
+        5.318
+      ]
     }
   ]
 }

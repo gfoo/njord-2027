@@ -22,13 +22,12 @@
     .panel { top: 10px; right: 10px; max-width: min(380px, calc(100% - 80px)); }
     .panel.error { background: #fff0f0; }
     .panel h1 { margin: 0 0 4px; font-size: 16px; }
+    .panel .version { margin-left: 6px; padding: 1px 7px; border-radius: 9px; background: var(--route); color: #fff; font-size: 11px; vertical-align: 2px; }
     .legend { top: 84px; left: 10px; max-width: min(300px, calc(100% - 40px)); font-size: 13px; }
     .legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .legend svg { flex: none; width: 28px; height: 12px; }
     .legend .route { stroke: var(--route); stroke-width: 3; }
-    .legend .dashed { stroke-dasharray: 6 6; }
     .legend .port { fill: var(--route); stroke: var(--route); stroke-width: 2; }
-    .legend .port.approximate { fill: #fff; stroke-dasharray: 2 3; }
     .legend .leg-number { margin: 0 3px; }
     .legend p { font-size: 12px; }
     .port-label {
@@ -107,11 +106,9 @@
   <div id="panel" class="box panel"><h1>Chargement du planning…</h1></div>
   <div id="weather" class="box weather" hidden></div>
   <div class="box legend">
-    <div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg>Étape</div>
-    <div><svg viewBox="0 0 28 12"><line class="route dashed" x1="0" y1="6" x2="28" y2="6"/></svg>Étape vers ou depuis un port à définir</div>
+    <div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg>Étape : ligne droite entre ses deux ports, pas une route</div>
     <div><span class="leg-number">01</span>Numéro d'étape</div>
     <div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port d'escale</div>
-    <div><svg viewBox="0 0 28 12"><circle class="port approximate" cx="14" cy="6" r="5"/></svg>Port encore à définir</div>
     <p>Survoler un trait : dates et distance de l'étape. Cliquer sur un trait : l'étape, avec le vent et la rose des vents à cet endroit. Cliquer ailleurs : le vent et la rose des vents de ce point. Cliquer sur un port : ses dates.</p>
   </div>
   <div class="box windbox">
@@ -134,79 +131,40 @@
     const VOYAGE_URL = 'voyage.json';
     const ROUTE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--route').trim();
 
-    // The workbook names the ports but holds no coordinates. Keys are the exact text of its
-    // « Débarquement hypothétique » column, plus the first leg's « Embarquement hypothétique ».
-    // via: sea path from the previous port, so that the line does not cross land.
-    // approximate: the port is not chosen yet; the point only marks the area.
-    // labelSide: where the name goes when the default, right, collides with a neighbour.
-    const PORTS = {
-      'Porto Ottiolu (Sardaigne)': { at: [40.737, 9.713] },
-      'Port Mahón (Minorque)': {
-        at: [39.888, 4.265],
-        via: [[40.95, 9.82], [41.33, 9.45], [41.31, 9.15], [41.25, 8.1], [39.87, 4.32]],
-      },
-      'Carthagène': {
-        at: [37.598, -0.983],
-        via: [[39.87, 4.32], [39.2, 3.3], [37.55, -0.65], [37.54, -0.9]],
-      },
-      'Cadix': {
-        at: [36.537, -6.285],
-        via: [[37.5, -1.0], [36.68, -2.15], [36.0, -5.35], [35.95, -5.65], [36.1, -6.1], [36.56, -6.35]],
-      },
-      'Lagos (Portugal)': { at: [37.107, -8.674], labelSide: 'left', via: [[36.56, -6.35]] },
-      'A Coruña': {
-        at: [43.367, -8.392],
-        via: [[37.0, -8.7], [36.95, -9.05], [38.8, -9.7], [43.0, -9.6], [43.3, -9.4], [43.45, -8.6], [43.4, -8.37]],
-      },
-      'Falmouth': { at: [50.153, -5.06], via: [[43.4, -8.37]] },
-      'Port à préciser sur la côte est anglaise': {
-        at: [51.95, 1.6],
-        approximate: true,
-        via: [[50.1, -3.6], [50.42, -2.45], [50.5, -1.3], [50.68, 0.25], [50.85, 1.05], [51.1, 1.5], [51.4, 1.6]],
-      },
-      'IJmuiden': { at: [52.463, 4.583] },
-      'West-Terschelling': {
-        at: [53.358, 5.22],
-        via: [[52.7, 4.4], [53.1, 4.55], [53.33, 4.95], [53.34, 5.1]],
-      },
-      'Cuxhaven': {
-        at: [53.868, 8.71],
-        via: [[53.34, 5.1], [53.45, 5.05], [53.55, 5.6], [53.65, 6.4], [53.75, 6.8], [53.85, 7.5], [54.0, 8.1], [54.0, 8.45], [53.92, 8.65]],
-      },
-      'Laboe (Kieler Förde)': {
-        at: [54.405, 10.22],
-        via: [[53.86, 8.9], [53.89, 9.14], [54.03, 9.29], [54.12, 9.4], [54.22, 9.55], [54.31, 9.68], [54.36, 9.84], [54.39, 10.03], [54.368, 10.145], [54.395, 10.19]],
-      },
-      'Port danois à définir selon météo': {
-        at: [56.4, 11.2],
-        approximate: true,
-        via: [[54.5, 10.3], [54.65, 10.9], [54.95, 11.0], [55.35, 11.0], [55.65, 10.85], [56.0, 10.95]],
-      },
-      'Port de la côte sud norvégienne à confirmer': {
-        at: [58.05, 8.0],
-        approximate: true,
-        via: [[57.3, 11.3], [57.8, 10.8]],
-      },
-      'Bergen': {
-        at: [60.393, 5.318],
-        via: [[57.9, 7.5], [57.88, 7.0], [58.4, 5.6], [59.0, 5.3], [59.2, 5.05], [59.6, 4.95], [60.12, 4.95], [60.15, 5.1], [60.27, 5.2], [60.33, 5.22], [60.405, 5.27]],
-      },
-    };
-
     // A canvas with a hit tolerance, so that the thin legs are easy to hover and click.
     const map = L.map('map', { renderer: L.canvas({ tolerance: 8 }) }).setView([48, 2], 4);
-    // Keyless and served without a Referer, so it also works when the page is opened from file://.
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
-      attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-    }).addTo(map);
+    // Keyless tile services. The light gray keeps the route and the wind arrows readable, so it opens
+    // by default.
+    const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
+    const BASE_MAPS = {
+      'Esri gris clair': L.tileLayer(`${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
+        maxZoom: 16,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+      }),
+      'Esri océans': L.tileLayer(`${ESRI}/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}`, {
+        maxZoom: 16,
+        // Past this level the ocean base has no tiles of its own: the last ones are enlarged.
+        maxNativeZoom: 13,
+        attribution: 'Tiles &copy; Esri &mdash; GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Esri',
+      }),
+      'Esri satellite': L.tileLayer(`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, {
+        maxZoom: 16,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, GIS User Community',
+      }),
+      'OpenStreetMap': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 16,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">les contributeurs d’OpenStreetMap</a>',
+      }),
+    };
+    BASE_MAPS['Esri gris clair'].addTo(map);
+    L.control.layers(BASE_MAPS, null, { position: 'bottomright' }).addTo(map);
 
     const panel = document.getElementById('panel');
     const weather = document.getElementById('weather');
     // Only the latest rose or wind grid asked for is drawn, however the answers arrive.
     let roseRequest = 0;
     let windRequest = 0;
-    // The point the weather panel shows: archives still waiting for the quota are dropped once it changes.
+    // The archive cell the weather panel shows: archives still waiting for the quota are dropped once it changes.
     let roseKey = null;
     const ROSE_VIEWS = { year: "Toute l'année", seasons: 'Saisons' };
     // The viewer's last choices, kept from one click to the next.
@@ -249,10 +207,10 @@
       const at = [clicked.lat, clicked.lng];
       const leg = route?.leg;
       const points = route
-        ? [['Départ', PORTS[route.from].at], ['Point cliqué', at], ['Arrivée', PORTS[route.to].at]]
+        ? [['Départ', route.path[0]], ['Point cliqué', at], ['Arrivée', route.path[1]]]
         : [['Point cliqué', at]];
       const highlight = leg ? seasonOf(utcDate(leg['Départ prévu']).getUTCMonth()) : null;
-      const key = formatPosition(at);
+      const key = roseCell(at).join();
       roseKey = key;
       clickedPoint.setLatLng(clicked).addTo(map);
       if (route) legHighlight.setLatLngs(route.path).addTo(map).bringToBack();
@@ -309,12 +267,12 @@
         if (!climate) return;
         if (roseView === 'year') {
           trend.innerHTML =
-            `<div class="small">Au point cliqué, sur toute l'année, ${escapeHtml(climate.span)}. Les pétales montrent d'où vient le vent.</div>` +
+            `<div class="small">Près du point cliqué (archives sur une grille de 0,1°), sur toute l'année, ${escapeHtml(climate.span)}. Les pétales montrent d'où vient le vent.</div>` +
             roseSvg(climate.year) + speedScale() + `<p>${escapeHtml(roseSummary(climate.year))}</p>`;
           return;
         }
         trend.innerHTML =
-          `<div class="small">Au point cliqué, ${escapeHtml(climate.span)}. Chaque contour montre d'où vient le vent pendant une saison : ` +
+          `<div class="small">Près du point cliqué (archives sur une grille de 0,1°), ${escapeHtml(climate.span)}. Chaque contour montre d'où vient le vent pendant une saison : ` +
           `plus il s'étire vers un point cardinal, plus le vent souffle souvent de là. Un bouton cache ou montre sa saison.</div>` +
           seasonLegend(highlight) + seasonRoseSvg(climate.seasons, highlight) + seasonTable(climate.seasons, highlight) +
           `<div class="small">Moyen : vitesse moyenne. F5+ et F7+ : part du temps à force 5 ou plus (17 nd et plus), à force 7 ou plus (28 nd et plus).` +
@@ -376,22 +334,26 @@
       drawRose();
     }
 
-    function render({ title, legs }) {
-      const stops = [legs[0]['Embarquement hypothétique'], ...legs.map(leg => leg['Débarquement hypothétique'])];
-      const unknown = stops.filter(name => !PORTS[name]);
-      if (unknown.length) {
-        throw new Error(`Coordonnées manquantes dans app/index.html pour : ${unknown.join(' ; ')}.`);
+    function render({ title, workbook, legs }) {
+      // A voyage.json written from a v1 workbook has no positions, and the map invents none.
+      if (legs.some(leg => !leg['Position embarquement'] || !leg['Position débarquement'])) {
+        throw new Error(`${VOYAGE_URL} ne contient pas les positions des ports : relance ./update.sh avec un tableur v2.`);
       }
-
       const bounds = L.latLngBounds([]);
-      legs.forEach((leg, i) => {
-        const from = PORTS[stops[i]];
-        const to = PORTS[stops[i + 1]];
-        const path = [from.at, ...(to.via ?? []), to.at];
+      // One marker per position: a port where one leg ends and the next starts is drawn once,
+      // with every name the workbook gives it.
+      const ports = new Map();
+      const visit = (at, name, line) => {
+        const port = ports.get(String(at)) ?? ports.set(String(at), { at, names: [], lines: [] }).get(String(at));
+        if (!port.names.includes(name)) port.names.push(name);
+        port.lines.push(line);
+      };
+
+      legs.forEach(leg => {
+        const path = [leg['Position embarquement'], leg['Position débarquement']];
         const line = L.polyline(path, {
           color: ROUTE_COLOR,
           weight: 3,
-          dashArray: from.approximate || to.approximate ? '6 6' : null,
           // The leg handles its own clicks: the map's handler is for clicks off the route.
           bubblingMouseEvents: false,
         }).addTo(map);
@@ -401,33 +363,30 @@
           ` · ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))}`,
           { sticky: true },
         );
-        line.on('click', event => showWeather({ leg, from: stops[i], to: stops[i + 1], path }, event.latlng.wrap()));
+        line.on('click', event => showWeather({ leg, path }, event.latlng.wrap()));
         bounds.extend(line.getBounds());
         L.marker(line.getCenter(), {
           icon: L.divIcon({ className: 'leg-number', html: escapeHtml(leg['Étape']), iconSize: [22, 22] }),
           interactive: false,
         }).addTo(map);
+        visit(path[0], leg['Embarquement hypothétique'],
+          `Départ ${escapeHtml(formatDate(leg['Départ prévu']))} (étape ${escapeHtml(leg['Étape'])})`);
+        visit(path[1], leg['Débarquement hypothétique'],
+          `Arrivée ${escapeHtml(formatDate(leg['Arrivée prévue']))} (étape ${escapeHtml(leg['Étape'])})`);
       });
 
-      stops.forEach((name, i) => {
-        const port = PORTS[name];
-        const arrival = legs[i - 1];
-        const departure = legs[i];
-        const lines = [`<b>${escapeHtml(name)}</b>`];
-        if (arrival) lines.push(`Arrivée ${escapeHtml(formatDate(arrival['Arrivée prévue']))} (étape ${escapeHtml(arrival['Étape'])})`);
-        if (departure) lines.push(`Départ ${escapeHtml(formatDate(departure['Départ prévu']))} (étape ${escapeHtml(departure['Étape'])})`);
-        L.circleMarker(port.at, {
+      ports.forEach(({ at, names, lines }) => {
+        L.circleMarker(at, {
           radius: 6,
           color: ROUTE_COLOR,
           weight: 2,
-          fillColor: port.approximate ? '#fff' : ROUTE_COLOR,
+          fillColor: ROUTE_COLOR,
           fillOpacity: 1,
-          dashArray: port.approximate ? '2 3' : null,
           // A click on a port opens its dates, not the weather of the spot.
           bubblingMouseEvents: false,
         })
-          .bindTooltip(escapeHtml(name), { permanent: true, direction: port.labelSide ?? 'right', className: 'port-label' })
-          .bindPopup(lines.join('<br>'))
+          .bindTooltip(escapeHtml(names[0]), { permanent: true, direction: 'right', className: 'port-label' })
+          .bindPopup([...names.map(name => `<b>${escapeHtml(name)}</b>`), ...lines].join('<br>'))
           .addTo(map);
       });
 
@@ -435,9 +394,11 @@
       map.fitBounds(bounds, { paddingTopLeft: [20, 80], paddingBottomRight: [20, 20] });
       const first = formatDate(legs[0]['Départ prévu']);
       const last = formatDate(legs.at(-1)['Arrivée prévue']);
+      // The workbook without a suffix is version 1, as tools/export_voyage.py counts them.
+      const version = Number(workbook.match(/_v(\d{2})\.xlsx$/)?.[1] ?? 1);
       panel.innerHTML =
-        `<h1>${escapeHtml(title)}</h1>` +
-        `<p>${legs.length} étapes, du ${escapeHtml(first)} au ${escapeHtml(last)}. Tracé indicatif.</p>`;
+        `<h1>${escapeHtml(title)}<span class="version" title="Données du tableur ${escapeHtml(workbook)}">v${version}</span></h1>` +
+        `<p>${legs.length} étapes, du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports placés aux positions du tableur.</p>`;
     }
 
     map.on('click', event => showWeather(null, event.latlng.wrap()));
@@ -459,8 +420,6 @@
     const windHour = windBox.querySelector('.wind-hour');
     const windHourLabel = windBox.querySelector('.wind-hour-label');
     const windLayer = L.layerGroup();
-    // Forecasts kept per model and grid point: moving the map only fetches the points not seen yet.
-    const windSeries = new Map();
     let windPoints = [];
 
     windModel.innerHTML = Object.entries(WIND_MODELS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
@@ -474,7 +433,6 @@
     windHour.max = String(WIND_HOURS);
     windBox.querySelector('.wind-bands').innerHTML = speedScale();
 
-    const seriesKey = (model, [lat, lon]) => `${model}|${lat},${lon}`;
     const wrapLongitude = lon => ((lon + 540) % 360) - 180;
 
     // Points of a lattice fixed in degrees, so that panning keeps the points already loaded. Its step
@@ -501,13 +459,11 @@
       const offset = Number(windHour.value);
       const now = new Date();
       const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + offset));
-      // Open-Meteo labels its hours like 2026-11-18T13:00, in UTC as asked.
-      const targetTime = target.toISOString().slice(0, 16);
       windPoints.forEach(({ at, series }) => {
-        const index = series.time.indexOf(targetTime);
-        const speed = series.wind_speed_10m[index];
-        const direction = series.wind_direction_10m[index];
-        if (index < 0 || speed == null || direction == null) return;
+        const index = (target - series.start) / HOUR;
+        const speed = series.speed[index];
+        const direction = series.direction[index];
+        if (speed == null || direction == null) return;
         L.marker(at, {
           icon: L.divIcon({
             className: 'wind-icon',
@@ -553,12 +509,12 @@
       const request = ++windRequest;
       const model = windModel.value;
       const points = windGridPoints();
-      const known = () => points.filter(point => windSeries.has(seriesKey(model, point)));
+      const known = () => points.filter(point => cachedForecast(model, point));
       const showKnown = () => {
-        windPoints = known().map(at => ({ at, series: windSeries.get(seriesKey(model, at)) }));
+        windPoints = known().map(at => ({ at, series: cachedForecast(model, at) }));
         drawWind();
       };
-      const missing = points.filter(point => !windSeries.has(seriesKey(model, point)));
+      const missing = points.filter(point => !cachedForecast(model, point));
       // Until something of the new view is known, the previous arrows stay rather than a blank map.
       if (known().length) showKnown();
       if (!missing.length) {
@@ -579,7 +535,7 @@
         if (request !== windRequest || failure) return;
         try {
           const series = await windForecast(chunk.map(([lat, lon]) => [lat, wrapLongitude(lon)]), model, pacing);
-          chunk.forEach((point, k) => windSeries.set(seriesKey(model, point), series[k]));
+          chunk.forEach((point, k) => keepForecast(model, point, series[k]));
         } catch (error) {
           failure = error;
           return;
@@ -614,7 +570,7 @@
       if (windPoints.length) drawWind();
     });
     windBox.querySelector('.wind-reload').addEventListener('click', () => {
-      windSeries.clear();
+      dropForecasts();
       loadWind();
     });
     windHour.addEventListener('input', () => { if (windPoints.length) drawWind(); });
