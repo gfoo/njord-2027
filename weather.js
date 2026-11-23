@@ -54,40 +54,6 @@ function weatherErrorMessage(error, fallback) {
   return `Limite de requêtes Open-Meteo atteinte : ${retry}.`;
 }
 
-// Kept in the browser across page loads: Open-Meteo's quota is counted per connection and per day,
-// and much of what the page asks for has been asked before. A private window may refuse storage;
-// the page then works without it.
-const STORE_PREFIX = 'njord.';
-
-function storeGet(key) {
-  try {
-    return JSON.parse(localStorage.getItem(STORE_PREFIX + key));
-  } catch {
-    return null;
-  }
-}
-
-function storeDrop(test) {
-  try {
-    Object.keys(localStorage)
-      .filter(key => key.startsWith(STORE_PREFIX) && test(key.slice(STORE_PREFIX.length)))
-      .forEach(key => localStorage.removeItem(key));
-  } catch {
-    // Storage refused: nothing was kept, nothing to drop.
-  }
-}
-
-function storeSet(key, value) {
-  try {
-    localStorage.setItem(STORE_PREFIX + key, JSON.stringify(value));
-  } catch {
-    // Storage full or refused: the result stays in memory for this visit only.
-  }
-}
-
-// Forecasts and point roses kept by earlier versions of the page: their room goes to the routes' wind.
-storeDrop(key => key.startsWith('wind|') || key.startsWith('rose|'));
-
 const sectorShares = ({ counts, total }) => counts.map(sector => sector.reduce((a, b) => a + b, 0) / total);
 
 const ROSE_CENTER = 120, ROSE_RADIUS = 92;

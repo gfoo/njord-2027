@@ -1,7 +1,7 @@
 // The wind along a route over a leg's dates in past years, from the viewer's browser: what
 // tools/wind_stats.py computes for the auto routes, here for a manual one. The settings (years,
-// margin, spacing, thresholds) are those of wind-stats.json, so that the two compare.
-// Each point's hours are kept in the browser (`hours|…`), two bytes an hour.
+// margin, spacing, thresholds) are those of the routes file, so that the two compare.
+// Each point's hours are kept in the browser (store.js, `hours|…`), two bytes an hour.
 
 // Open-Meteo refuses a browser more than a few requests at once (« Too many concurrent requests »).
 const ROUTE_WIND_WORKERS = 3;
@@ -72,7 +72,7 @@ function unpackHours(text) {
 
 async function windowHours(at, start, end, pacing) {
   const key = `hours|${at[0].toFixed(1)},${at[1].toFixed(1)}|${start}|${end}`;
-  const kept = storeGet(key);
+  const kept = await storeGet(key);
   if (typeof kept === 'string') return unpackHours(kept);
   const days = (Date.parse(end) - Date.parse(start)) / 86_400_000 + 1;
   const params = new URLSearchParams({
@@ -95,7 +95,7 @@ async function windowHours(at, start, end, pacing) {
     }
   }
   const packed = packHours(hourly.wind_speed_10m, hourly.wind_direction_10m);
-  storeSet(key, packed);
+  await storeSet(key, packed);
   return unpackHours(packed);
 }
 

@@ -8,50 +8,92 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="xlsx.js"></script>
+  <script src="routes-file.js"></script>
+  <script src="store.js"></script>
   <script src="weather.js"></script>
   <script src="sea-route.js"></script>
   <script src="route-wind.js"></script>
   <style>
-    :root {
-      /* The three points of sail: the reference palette's first slots, in its validated order. */
-      --wind-close: #2a78d6; --wind-reach: #eb6834; --wind-run: #1baf7a;
+    :root { --route: #1d4e89; --trial: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; font-family: system-ui, sans-serif; color: #1d2b3a; }
+    button { font: inherit; }
+
+    .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 6px 12px; background: var(--route); color: #fff; }
+    .bar h1 { margin: 0; font-size: 15px; letter-spacing: 0.03em; white-space: nowrap; }
+    .stages { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+    .tab { padding: 2px 6px; border: 1px solid rgba(255, 255, 255, 0.45); border-radius: 3px; background: transparent; color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; }
+    .tab:hover { background: rgba(255, 255, 255, 0.15); }
+    .tab.active { background: #fff; color: var(--route); font-weight: 700; }
+    .tab.voyage { margin-right: 6px; padding: 2px 10px; }
+    .tab.has-manual { box-shadow: inset 0 -3px 0 #c9a3dc; }
+    .file-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; }
+    .file-box .name { opacity: 0.9; }
+    .file-box .state { padding: 1px 6px; border-radius: 3px; background: #ffd84d; color: #1d2b3a; font-weight: 600; }
+    .file-box button { padding: 2px 9px; border: 1px solid #fff; border-radius: 3px; background: #fff; color: var(--route); font-size: 12px; cursor: pointer; }
+    .file-box button.quiet { background: transparent; color: #fff; }
+    .file-box button.confirm { background: #ffd84d; border-color: #ffd84d; color: #1d2b3a; }
+    .file-box button:disabled { opacity: 0.45; cursor: default; }
+    .message { display: flex; gap: 10px; align-items: baseline; padding: 6px 12px; background: #eef3f9; font-size: 13px; }
+    .message.error { background: #fbe3e0; color: #8a1f14; }
+    .message[hidden] { display: none; }
+    .message button { margin-left: auto; border: none; background: none; font-size: 16px; cursor: pointer; color: inherit; }
+
+    .main { display: flex; flex: 1; min-height: 0; }
+    #map { flex: 1; min-width: 0; }
+    .side { box-sizing: border-box; width: clamp(360px, 40vw, 580px); overflow: auto; padding: 12px 16px; border-left: 1px solid var(--line); background: #fff; font-size: 13px; }
+    @media (max-width: 800px) {
+      .main { flex-direction: column; }
+      #map { flex: none; height: 45vh; }
+      .side { flex: 1; width: auto; border-top: 1px solid var(--line); border-left: none; }
     }
-    :root { --route: #1d4e89; --trial: #7d3c98; --trial-land: #c0392b; }
-    html, body, #map { height: 100%; margin: 0; }
-    body { font-family: system-ui, sans-serif; }
-    .box {
-      position: absolute; z-index: 1000;
-      padding: 10px 14px; border-radius: 6px;
-      background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    }
-    .box p { margin: 4px 0 0; font-size: 13px; color: #444; }
-    .panel { top: 10px; right: 10px; max-width: min(380px, calc(100% - 80px)); }
-    .panel.error { background: #fff0f0; }
-    .panel h1 { margin: 0 0 4px; font-size: 16px; }
-    .panel .version { margin-left: 6px; padding: 1px 7px; border-radius: 9px; background: var(--route); color: #fff; font-size: 11px; vertical-align: 2px; }
-    .legend { top: 84px; left: 10px; max-width: min(300px, calc(100% - 40px)); font-size: 13px; }
-    .legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-    .legend svg { flex: none; width: 28px; height: 12px; }
-    .legend .route { stroke: var(--route); stroke-width: 3; }
-    .legend .manual { stroke: var(--trial); stroke-width: 3; }
+    .side h2 { margin: 0 0 4px; font-size: 16px; }
+    .side h3 { margin: 16px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--route); }
+    .side .small { color: #666; font-size: 11px; }
+    .side .credit { margin-top: 14px; color: #666; font-size: 11px; }
     .manual-text { color: var(--trial); }
-    .legend .port { fill: var(--route); stroke: var(--route); stroke-width: 2; }
-    .legend .leg-number { margin: 0 3px; }
-    .legend p { font-size: 12px; }
-    .port-label {
-      padding: 0 4px; background: none; border: none; box-shadow: none;
-      font-weight: 600; color: #1d2b3a;
-      text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
-    }
-    .port-label::before { display: none; }
-    .weather { top: 84px; right: 10px; width: min(340px, calc(100% - 20px)); max-height: calc(100% - 104px); overflow: auto; font-size: 13px; }
-    .weather[hidden] { display: none; }
-    .weather h2 { margin: 0 24px 2px 0; font-size: 15px; }
-    .weather h3 { margin: 14px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--route); }
-    .weather table { width: 100%; border-collapse: collapse; }
-    .weather td { padding: 3px 4px 3px 0; vertical-align: middle; }
-    .weather td:first-child { color: #555; white-space: nowrap; }
-    .weather .small { color: #666; font-size: 11px; }
+    .warning { color: var(--trial-land); }
+
+    .pace { margin: 10px 0 4px; font-size: 12px; }
+    .pace input { width: 52px; }
+    .why { margin-left: 4px; width: 16px; height: 16px; padding: 0; border: 1px solid var(--route); border-radius: 50%; background: #fff; color: var(--route); font-size: 10px; line-height: 14px; cursor: pointer; vertical-align: 1px; }
+    .rose-tip, .why-tip { position: fixed; z-index: 2000; max-width: 230px; padding: 6px 9px; border-radius: 4px; background: #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); font-size: 12px; line-height: 1.45; pointer-events: none; }
+    .why-tip { max-width: 300px; }
+    .rose-tip[hidden], .why-tip[hidden] { display: none; }
+    .rose-tip .bands { color: #444; }
+    .rose-tip .swatch { display: inline-block; width: 10px; height: 10px; margin: 0 3px 0 6px; vertical-align: -1px; }
+    .rose-tip .swatch:first-child { margin-left: 0; }
+    .rose-tip .other { color: #666; }
+
+    .figures-table { width: 100%; margin: 8px 0 4px; border-collapse: collapse; font-size: 12px; }
+    .figures-table th, .figures-table td { padding: 3px 6px; text-align: right; vertical-align: top; }
+    .figures-table th:first-child, .figures-table td:first-child { text-align: left; }
+    .figures-table tr + tr td { border-top: 1px solid #eee; }
+    .figures-table .group th { padding-top: 10px; text-align: left; }
+    .voyage-table th { font-weight: 600; vertical-align: bottom; }
+    .voyage-table td:nth-child(2), .voyage-table th:nth-child(2) { text-align: left; }
+    .voyage-table tbody tr { cursor: pointer; }
+    .voyage-table tbody tr:hover, .voyage-table tbody tr:focus { background: #eef3f9; outline: none; }
+    .voyage-table .leg { font-weight: 700; color: var(--route); }
+    .voyage-table .total td { border-top: 2px solid var(--line); font-weight: 600; }
+    .voyage-table .late { color: var(--trial-land); }
+    .voyage-table td:nth-child(n+3) { white-space: nowrap; }
+
+    .wind-block .roses { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+    .wind-block .roses h4 { margin: 4px 0 0; font-size: 13px; text-align: center; }
+    .wind-block .roses .small { text-align: center; }
+    .wind-block .period { margin: 6px 0 10px; padding: 6px 10px; border-radius: 4px; background: #eef3f9; font-size: 14px; font-weight: 600; text-align: center; }
+    .wind-block .period span { display: block; color: #666; font-size: 11px; font-weight: normal; }
+    .wind-block .rose { display: block; width: 100%; max-width: 320px; margin: 4px auto; }
+    .wind-block .ring { fill: none; stroke: #ccc; stroke-width: 0.8; }
+    .wind-block .ring-label { fill: #666; font-size: 8px; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    .wind-block .cardinal { fill: #333; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .wind-block .allure { fill: #666; font-size: 10px; font-style: italic; text-anchor: middle; }
+    .wind-block .allure-limit { stroke: #555; stroke-width: 1; stroke-dasharray: 3 3; }
+    .wind-block .hit { fill: transparent; }
+    .wind-block .hit:hover { fill: rgba(29, 78, 137, 0.1); stroke: var(--route); stroke-width: 1; }
+    .hull { fill: #fff; stroke: var(--route); stroke-width: 2; }
     .scale { margin: 6px 0 4px; font-size: 10px; }
     .scale-bar { display: flex; height: 15px; overflow: hidden; border-radius: 3px; }
     .scale-bar span { display: flex; align-items: center; justify-content: center; font-weight: 600; }
@@ -63,87 +105,63 @@
     .progress .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #9dbbe0; transition: width 0.2s; }
     .progress .text { position: relative; display: block; padding: 3px 10px; text-align: center; }
     .progress.error { background: #fbe3e0; color: #8a1f14; }
-    .progress[hidden] { display: none; }
-    .leaflet-container.trial-mode { cursor: crosshair; }
-    .hull { fill: #fff; stroke: var(--route); stroke-width: 2; }
-    .weather .wind-how { margin-top: 6px; padding: 3px 9px; border: 1px solid var(--route); border-radius: 3px; background: #fff; color: var(--route); font: inherit; font-size: 12px; cursor: pointer; }
-    .wind-window { top: 84px; left: 10px; z-index: 1001; background: #fff; width: min(720px, calc(100% - 20px)); max-height: calc(100% - 104px); overflow: auto; font-size: 13px; }
-    .wind-window[hidden] { display: none; }
-    .wind-window h2 { margin: 0 24px 6px 0; font-size: 15px; }
-    .wind-window .boat-rose .hit { fill: transparent; }
-    .wind-window .boat-rose .hit:hover { fill: rgba(29, 78, 137, 0.1); stroke: var(--route); stroke-width: 1; }
-    .rose-tip, .why-tip { position: absolute; z-index: 2; max-width: 230px; padding: 6px 9px; border-radius: 4px; background: #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); font-size: 12px; line-height: 1.45; pointer-events: none; }
-    .rose-tip[hidden], .why-tip[hidden] { display: none; }
-    .why-tip { max-width: 300px; font-weight: normal; text-align: left; }
-    .rose-tip .bands { color: #444; }
-    .rose-tip .swatch { display: inline-block; width: 10px; height: 10px; margin: 0 3px 0 6px; vertical-align: -1px; }
-    .rose-tip .swatch:first-child { margin-left: 0; }
-    .rose-tip .other { color: #666; }
-    .wind-window .roses { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-    .wind-window .roses h3 { margin: 4px 0 0; font-size: 13px; text-align: center; }
-    .wind-window .period { margin: 6px 0 10px; padding: 6px 10px; background: #eef3f9; border-radius: 4px; text-align: center; font-size: 14px; font-weight: 600; }
-    .wind-window .period span { display: block; font-size: 11px; font-weight: normal; color: #666; }
-    .wind-window .wind-table { width: 100%; margin: 10px 0 4px; border-collapse: collapse; font-size: 12px; }
-    .wind-window .wind-table th, .wind-window .wind-table td { padding: 3px 6px; text-align: right; }
-    .wind-window .wind-table th:first-child, .wind-window .wind-table td:first-child { text-align: left; }
-    .wind-window .wind-table tr + tr td { border-top: 1px solid #eee; }
-    .wind-window .wind-table .group th { padding-top: 10px; text-align: left; }
-    .wind-window .pace { margin-top: 10px; font-size: 12px; }
-    .wind-window .pace input { width: 52px; }
-    .wind-manual { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; font-size: 12px; cursor: pointer; }
-    .wind-window .why { margin-left: 4px; width: 16px; height: 16px; padding: 0; border: 1px solid var(--route); border-radius: 50%; background: #fff; color: var(--route); font-size: 10px; line-height: 14px; cursor: pointer; }
-    .wind-window .small, .wind-window .credit { color: #666; font-size: 11px; }
-    .wind-window .rose { display: block; width: 100%; max-width: 340px; margin: 4px auto; }
-    .wind-window .ring { fill: none; stroke: #ccc; stroke-width: 0.8; }
-    .wind-window .ring-label { fill: #666; font-size: 8px; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-    .wind-window .cardinal { fill: #333; font-size: 11px; font-weight: 700; text-anchor: middle; }
-    .wind-window .allure { fill: #666; font-size: 10px; font-style: italic; text-anchor: middle; }
-    .wind-window .allure-limit { stroke: #555; stroke-width: 1; stroke-dasharray: 3 3; }
+    .wind-manual, .trial button { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font-size: 12px; cursor: pointer; }
+
+    .trial { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--trial); background: #faf6fc; }
+    .trial h3 { margin-top: 0; color: var(--trial); }
+    .trial .figures { margin: 6px 0; line-height: 1.5; }
+    .trial .figures b { color: var(--trial); }
+    .trial ol { margin: 4px 0; padding-left: 22px; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .trial .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+    .legend { padding: 5px 9px; border-radius: 6px; background: rgba(255, 255, 255, 0.94); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); font-size: 11px; max-width: 240px; }
+    .legend div { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+    .legend svg { flex: none; width: 28px; height: 12px; }
+    .legend .route { stroke: var(--route); stroke-width: 3; }
+    .legend .manual { stroke: var(--trial); stroke-width: 3; }
+    .legend .port { fill: var(--route); stroke: var(--route); stroke-width: 2; }
     .legend [hidden] { display: none; }
-    .legend .trials-export { flex-wrap: wrap; gap: 6px; margin: 8px 0 0; font-size: 12px; }
-    .legend .trials-export button { padding: 2px 8px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; cursor: pointer; }
+    .port-label { padding: 0 4px; border: none; background: none; box-shadow: none; color: #1d2b3a; font-weight: 600; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; }
+    .port-label::before { display: none; }
+    .leaflet-container.trial-mode { cursor: crosshair; }
     .trial-point { box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: var(--trial); box-shadow: 0 0 0 1px var(--trial); cursor: grab; }
-    .weather .trial { margin-top: 8px; }
-    .weather .trial button { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; font-size: 12px; cursor: pointer; }
-    .weather .trial h3 { color: var(--trial); }
-    .weather .trial .figures { margin: 6px 0; line-height: 1.5; }
-    .weather .trial .figures b { color: var(--trial); }
-    .weather .trial .warning { color: var(--trial-land); }
-    .weather .trial .speed { width: 52px; }
-    .weather .trial ol { margin: 4px 0; padding-left: 22px; font-variant-numeric: tabular-nums; }
-    .weather .trial .passages { width: 100%; box-sizing: border-box; margin: 2px 0 6px; font: 11px ui-monospace, monospace; }
-    .weather .trial .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .close { position: absolute; top: 4px; right: 8px; border: none; background: none; font-size: 20px; cursor: pointer; color: #555; }
     .leg-number {
       display: flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box;
       width: 22px; height: 22px; border: 2px solid var(--route); border-radius: 50%;
-      background: #fff; color: var(--route); font-size: 11px; font-weight: 700;
+      background: #fff; color: var(--route); font-size: 11px; font-weight: 700; cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="panel" class="box panel"><h1>Chargement du planning…</h1></div>
-  <div class="box weather leg-panel" hidden></div>
-  <div class="box wind-window" role="dialog" aria-label="Le vent vu du bateau" hidden></div>
-  <div class="box legend">
-    <div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg><span class="route-label">Étape</span></div>
-    <div class="trial-legend" hidden><svg viewBox="0 0 28 12"><line class="manual" x1="0" y1="6" x2="28" y2="6"/></svg>Parcours manuel, par des passages posés à la main (gardé dans ce navigateur seulement)</div>
-    <div><span class="leg-number">01</span>Numéro d'étape</div>
-    <div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port d'escale</div>
-    <p>Survoler un trait : dates et distance de l'étape. Cliquer sur un trait : l'étape, ses parcours et le vent qu'on y trouve d'après les statistiques. Cliquer sur un port : ses dates.</p>
-    <div class="trials-export" hidden></div>
-  </div>
+  <header class="bar">
+    <h1 class="title"></h1>
+    <nav class="stages" aria-label="Étapes"></nav>
+    <div class="file-box">
+      <span class="name"></span><span class="state" hidden>modifié</span>
+      <button type="button" class="open quiet">Ouvrir…</button>
+      <input type="file" class="file-input" accept=".xlsx" hidden>
+      <button type="button" class="save">Enregistrer</button>
+      <button type="button" class="site quiet" hidden>Fichier du site</button>
+    </div>
+  </header>
+  <div class="message" role="status" hidden></div>
+  <main class="main">
+    <div id="map"></div>
+    <aside class="side"><h2>Chargement du fichier de parcours…</h2></aside>
+  </main>
+  <div class="rose-tip" hidden></div>
+  <div class="why-tip" hidden></div>
   <script>
-    // Written from the workbook by ./update.sh: the site never holds the workbook itself.
-    const VOYAGE_URL = 'voyage.json';
+    // Written by ./update.sh beside the site, with the coast mask it goes with.
+    const SITE_FILE_URL = 'parcours.xlsx';
+    const KEPT_FILE = 'routes-file';
     const ROUTE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--route').trim();
     const TRIAL_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--trial').trim();
+    const METERS_PER_NM = 1852;
 
     // A canvas with a hit tolerance, so that the thin legs are easy to hover and click.
-    const map = L.map('map', { renderer: L.canvas({ tolerance: 8 }) }).setView([48, 2], 4);
-    // Keyless tile services. The light gray keeps the route and the wind arrows readable, so it opens
-    // by default.
+    const map = L.map('map', { renderer: L.canvas({ tolerance: 8 }), zoomSnap: 0.25 }).setView([48, 2], 4);
+    // Keyless tile services. The light gray keeps the routes readable, so it opens by default.
     const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
     const BASE_MAPS = {
       'Esri gris clair': L.tileLayer(`${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
@@ -168,11 +186,27 @@
     BASE_MAPS['Esri gris clair'].addTo(map);
     L.control.layers(BASE_MAPS, null, { position: 'bottomright' }).addTo(map);
 
-    const panel = document.getElementById('panel');
-    const legPanel = document.querySelector('.leg-panel');
-    // A highlighter band under the selected leg, kept below every line so that the leg stays drawn
-    // as it is, dashes included. Its pale yellow is none of the wind's force colours.
+    const side = document.querySelector('.side');
+    const bar = document.querySelector('.bar');
+    // A highlighter band under the shown leg, kept below every line so that the leg stays drawn as
+    // it is. Its pale yellow is none of the wind's force colours.
     const legHighlight = L.polyline([], { color: '#ffd84d', weight: 14, opacity: 0.75, interactive: false });
+    const drawn = L.layerGroup().addTo(map);
+    const statsPoints = L.layerGroup();
+    // A message shown or closed above the map changes its height: Leaflet has to be told.
+    new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
+
+    const legend = L.control({ position: 'bottomleft' });
+    legend.onAdd = () => {
+      const box = L.DomUtil.create('div', 'legend');
+      box.innerHTML =
+        `<div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg><span class="route-label">Parcours auto</span></div>` +
+        `<div class="trial-legend" hidden><svg viewBox="0 0 28 12"><line class="manual" x1="0" y1="6" x2="28" y2="6"/></svg>Parcours manuel : passages posés à la main</div>` +
+        `<div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port (cliquer : ses dates)</div>`;
+      L.DomEvent.disableClickPropagation(box);
+      return box;
+    };
+    legend.addTo(map);
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`);
@@ -191,63 +225,483 @@
       return utcDate(value).toLocaleDateString('fr-CH', { day: 'numeric', month: 'short', timeZone: 'UTC', ...options });
     }
 
-
-    // Statistics of the wind along each leg's computed route (tools/wind_stats.py), or null.
-    let windStats = null;
-
     function dayMonth(isoDate, shiftDays) {
       const date = utcDate(isoDate);
       date.setUTCDate(date.getUTCDate() + shiftDays);
       return date.toLocaleDateString('fr-CH', { day: 'numeric', month: 'long', timeZone: 'UTC' });
     }
 
-    // The wind along a leg's routes: the auto route's from wind-stats.json, a manual route's computed
-    // in the browser on demand (route-wind.js), once per path for the visit.
-    const manualWinds = new Map();
-
-    function autoWind(leg) {
-      const stats = windStats?.legs[leg['Étape']];
-      const current = stats && stats.dates[0] === leg['Départ prévu'] && stats.dates[1] === leg['Arrivée prévue'] &&
-        stats.routeNm === leg.route?.nm;
-      return current ? stats : null;
+    function formatHours(hours) {
+      const total = Math.round(Math.abs(hours));
+      const days = Math.floor(total / 24);
+      return days ? `${days} j ${total % 24} h` : `${total} h`;
     }
 
-    const manualKey = route => `${legKey(route)}|${JSON.stringify(trials.get(legKey(route))?.path)}`;
-
-    function manualWind(route) {
-      const key = manualKey(route);
-      if (!manualWinds.has(key) || manualWinds.get(key).error) {
-        const entry = { done: 0, total: 0, pause: 0, stats: null, error: null };
-        manualWinds.set(key, entry);
-        routeWindStats(trials.get(legKey(route)).path, route.leg, windStats, {
-          onProgress: (done, total, pause) => {
-            Object.assign(entry, { done, total, pause: pause ?? 0 });
-            refreshWind(route);
-          },
-        })
-          .then(stats => { entry.stats = stats; }, error => { entry.error = error; })
-          .finally(() => refreshWind(route));
-      }
-      return manualWinds.get(key);
+    function formatDistance(value) {
+      const text = String(value ?? '');
+      return text.includes('NM') ? text : `${text} NM`;
     }
 
     // A rare gale rounds to 0 %, which would read as never.
     const windPercent = share => (share > 0 && share < 0.005 ? 'moins de 1 %' : `${Math.round(share * 100)} %`);
+    const tipPercent = share => `${(share * 100).toLocaleString('fr-CH', { maximumFractionDigits: share < 0.1 ? 1 : 0 })} %`;
+    const pathNm = path => path.slice(1).reduce((sum, to, i) => sum + map.distance(path[i], to), 0) / METERS_PER_NM;
+    // Both dates of the leg count.
+    const plannedHours = leg => ((utcDate(leg['Arrivée prévue']) - utcDate(leg['Départ prévu'])) / 86_400_000 + 1) * 24;
 
-    // In the leg's panel, only the way to the window of the roses: the figures are there.
-    function windSectionHtml(route) {
-      const { leg } = route;
-      if (!leg.route || !windStats?.legs[leg['Étape']]) return '';
-      // Statistics of other dates or of another route would mislead: they are flagged, not shown.
-      if (!autoWind(leg)) {
-        return `<h3>Vent sur le parcours</h3><div class="small">Statistiques à recalculer : les dates ou le parcours auto ` +
-          `de l'étape ont changé depuis (tools/wind_stats.py).</div>`;
+
+    let file = null;
+    let fileBytes = null;
+    // 'site' (its copy beside the page), 'opened' (« Ouvrir… ») or 'saved' (« Enregistrer »).
+    let fileOrigin = 'site';
+    let modified = false;
+    let siteFile = null;
+    let siteBytes = null;
+    let windStats = null;
+    let trialSpeed = 5;
+    // How close to the wind the boat sails, in degrees: closer than that, it tacks.
+    let pointingDeg = 45;
+    let allBounds = null;
+
+    const legRoutes = new Map();
+    const trials = new Map();
+    const seaStretches = new Map();
+    // The wind of the manual routes, by what it was computed for (routeFingerprint): from the file,
+    // or computed in the browser.
+    const manualWinds = new Map();
+    let shownRoute = null;
+    let editing = null;
+    let trialMessage = '';
+    let coastMask;
+    let coast = null;
+
+    function showMessage(text, kind = 'info') {
+      const box = document.querySelector('.message');
+      box.className = `message ${kind}`;
+      box.hidden = false;
+      box.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" aria-label="Fermer">×</button>`;
+      box.querySelector('button').addEventListener('click', () => { box.hidden = true; });
+    }
+
+    const manualOf = parsed => Object.fromEntries(parsed.routes.filter(route => route.name === ROUTE_NAMES.manual)
+      .map(route => [route.leg['Étape'], { mode: route.mode, passages: route.passages }]));
+
+    // A file read, or the state the browser kept of one, replaces what the map shows.
+    function useFile(parsed, bytes, { origin, manual = manualOf(parsed), speed = parsed.speed, pointing = parsed.pointing, changed = false }) {
+      stopEditing();
+      trials.forEach(trial => { trial.line.remove(); trial.markers.remove(); });
+      trials.clear();
+      file = parsed;
+      fileBytes = bytes;
+      fileOrigin = origin;
+      modified = changed;
+      windStats = parsed.wind;
+      trialSpeed = speed;
+      pointingDeg = pointing;
+      for (const route of parsed.routes) {
+        if (route.name === ROUTE_NAMES.manual && route.stats) manualWinds.set(route.stats.fingerprint, { stats: route.stats });
       }
-      const { years: [first, last], marginDays } = windStats;
-      return `<h3>Vent sur le parcours</h3>` +
-        `<div class="small">D'où vient le vent par rapport au bateau, sur le parcours auto et le parcours manuel s'il existe : ` +
-        `statistiques ${first}–${last} du ${dayMonth(leg['Départ prévu'], -marginDays)} au ${dayMonth(leg['Arrivée prévue'], marginDays)}.</div>` +
-        `<button type="button" class="wind-how">Roses des vents du parcours</button>`;
+      drawFile();
+      for (const [key, { mode, passages }] of Object.entries(manual)) {
+        const route = legRoutes.get(key);
+        if (route && passages.length) placePassages(route, passages.map(([lat, lon]) => L.latLng(lat, lon)), mode);
+      }
+      if (trials.size) loadCoastMask();
+      showFileBar();
+      keep();
+      showView();
+    }
+
+    // The browser keeps the file worked on, so that a reload finds it; the site's copy unchanged
+    // needs no keeping, and a newer one then shows at once.
+    function keep() {
+      if (fileOrigin === 'site' && !modified) {
+        storeDelete(KEPT_FILE);
+        return;
+      }
+      storeSet(KEPT_FILE, {
+        bytes: fileBytes,
+        origin: fileOrigin,
+        changed: modified,
+        speed: trialSpeed,
+        pointing: pointingDeg,
+        manual: Object.fromEntries([...trials].map(([key, trial]) =>
+          [key, { mode: trial.mode, passages: trial.points.map(({ lat, lng }) => [lat, lng]) }])),
+      });
+    }
+
+    function markModified() {
+      modified = true;
+      showFileBar();
+      keep();
+    }
+
+    function showFileBar() {
+      const box = bar.querySelector('.file-box');
+      const origin = { site: 'fichier du site', opened: 'ouvert', saved: 'enregistré' }[fileOrigin];
+      box.querySelector('.name').textContent = `${file.name} · ${origin}`;
+      box.querySelector('.name').title = `Tiré du tableur ${file.workbook}` +
+        (siteFile && siteFile.version > file.version ? `. Le site a une version plus récente : ${siteFile.name}` : '');
+      box.querySelector('.state').hidden = !modified;
+      box.querySelector('.save').disabled = !modified;
+      box.querySelector('.save').title = modified
+        ? `Télécharger ${routesFileName(file.version + 1)}, à déposer dans le dossier NJORD_2027 du Drive` : 'Rien à enregistrer';
+      box.querySelector('.site').hidden = fileOrigin === 'site' && !modified;
+      bar.querySelector('.title').textContent = file.title;
+      document.title = `${file.title} — parcours`;
+    }
+
+    // A button that drops unsaved changes asks a second click first.
+    function guarded(button, act) {
+      button.addEventListener('click', () => {
+        if (!modified || button.classList.contains('confirm')) {
+          button.classList.remove('confirm');
+          button.textContent = button.dataset.label ?? button.textContent;
+          act();
+          return;
+        }
+        button.dataset.label = button.textContent;
+        button.textContent = 'Modifications perdues : cliquer encore';
+        button.classList.add('confirm');
+        setTimeout(() => {
+          button.classList.remove('confirm');
+          button.textContent = button.dataset.label;
+        }, 5000);
+      });
+    }
+
+    const fileInput = bar.querySelector('.file-input');
+    guarded(bar.querySelector('.open'), () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const chosen = fileInput.files[0];
+      fileInput.value = '';
+      if (!chosen) return;
+      try {
+        const bytes = await chosen.arrayBuffer();
+        useFile(await readRoutesFile(bytes), bytes, { origin: 'opened' });
+        showMessage(`${chosen.name} ouvert.`);
+      } catch (error) {
+        showMessage(`${chosen.name} refusé : ${error.message}.`, 'error');
+      }
+    });
+    guarded(bar.querySelector('.site'), () => {
+      useFile(siteFile, siteBytes, { origin: 'site' });
+      showMessage(`Retour au fichier du site, ${siteFile.name}.`);
+    });
+
+    // Each leg's auto route, and its manual one when it has one, with the wind each carries.
+    function routesToSave() {
+      return [...legRoutes.values()].flatMap(route => {
+        const trial = trials.get(legKey(route));
+        if (!trial) return [route.auto];
+        return [route.auto, {
+          leg: route.leg,
+          name: ROUTE_NAMES.manual,
+          mode: trial.mode,
+          passages: trial.points.map(({ lat, lng }) => [lat, lng]),
+          path: trial.path,
+          nm: pathNm(trial.path),
+          stats: manualWinds.get(manualKey(route))?.stats ?? null,
+        }];
+      });
+    }
+
+    bar.querySelector('.save').addEventListener('click', async () => {
+      stopEditing();
+      try {
+        const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg });
+        const link = Object.assign(document.createElement('a'), {
+          href: URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })),
+          download: name,
+        });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        // Revoked at once, the address would be gone before the browser starts the download.
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        useFile(await readRoutesFile(bytes.buffer), bytes.buffer, { origin: 'saved' });
+        showMessage(`${name} téléchargé. Déposé dans le dossier NJORD_2027 du Drive, il est repris par le prochain ./update.sh, ` +
+          `qui calcule ce qui manque (le vent d'un parcours manuel pas encore calculé, par exemple).`);
+      } catch (error) {
+        showMessage(`Enregistrement impossible : ${error.message}.`, 'error');
+      }
+    });
+
+
+    const legKey = route => route.leg['Étape'];
+    const straightMode = route => (trials.get(legKey(route))?.mode ?? route.auto.mode) === ROUTE_MODES.straight;
+
+    function drawFile() {
+      drawn.clearLayers();
+      legRoutes.clear();
+      shownRoute = null;
+      const bounds = L.latLngBounds([]);
+      // One marker per position: a port where one leg ends and the next starts is drawn once, with
+      // every name the workbook gives it.
+      const ports = new Map();
+      const visit = (at, name, line) => {
+        const port = ports.get(String(at)) ?? ports.set(String(at), { at, names: [], lines: [] }).get(String(at));
+        if (!port.names.includes(name)) port.names.push(name);
+        port.lines.push(line);
+      };
+      file.legs.forEach(leg => {
+        const ends = [leg['Position embarquement'], leg['Position débarquement']];
+        // A file edited by hand may have lost a leg's auto route: drawn straight until ./update.sh computes it.
+        const auto = file.routes.find(one => one.leg === leg && one.name === ROUTE_NAMES.auto) ??
+          { leg, name: ROUTE_NAMES.auto, mode: ROUTE_MODES.straight, passages: [], path: ends, nm: null, stats: null, missing: true };
+        auto.path ??= ends;
+        auto.nm ??= pathNm(auto.path);
+        const line = L.polyline(auto.path, {
+          color: ROUTE_COLOR,
+          weight: 3,
+          // The leg handles its own clicks: the map's handler is for passages.
+          bubblingMouseEvents: false,
+        }).addTo(drawn);
+        const route = { leg, auto, path: auto.path, ends, line };
+        legRoutes.set(leg['Étape'], route);
+        line.bindTooltip(() => `<b>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</b><br>` +
+          `${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}<br>` +
+          legDistances(route), { sticky: true });
+        line.on('click', event => (editing ? addTrialPoint(event.latlng) : goTo(route)));
+        bounds.extend(line.getBounds());
+        route.number = L.marker(line.getCenter(), {
+          icon: L.divIcon({ className: 'leg-number', html: escapeHtml(leg['Étape']), iconSize: [22, 22] }),
+          title: `Étape ${leg['Étape']}`,
+        }).on('click', () => (editing ? null : goTo(route))).addTo(drawn);
+        visit(ends[0], leg['Embarquement hypothétique'],
+          `Départ ${escapeHtml(formatDate(leg['Départ prévu']))} (étape ${escapeHtml(leg['Étape'])})`);
+        visit(ends[1], leg['Débarquement hypothétique'],
+          `Arrivée ${escapeHtml(formatDate(leg['Arrivée prévue']))} (étape ${escapeHtml(leg['Étape'])})`);
+      });
+      ports.forEach(({ at, names, lines }) => {
+        L.circleMarker(at, {
+          radius: 6, color: ROUTE_COLOR, weight: 2, fillColor: ROUTE_COLOR, fillOpacity: 1,
+          // A click on a port opens its dates, not a leg.
+          bubblingMouseEvents: false,
+        })
+          .bindTooltip(escapeHtml(names[0]), { permanent: true, direction: 'right', className: 'port-label' })
+          .bindPopup([...names.map(name => `<b>${escapeHtml(name)}</b>`), ...lines].join('<br>'))
+          .addTo(drawn);
+      });
+      allBounds = bounds;
+      const label = document.querySelector('.legend .route-label');
+      label.textContent = `Parcours auto : calculé, pas une route de navigation`;
+      label.title = `Le plus court chemin en mer, à ${file.coast.coastDistanceNm} NM des côtes quand c'est possible ` +
+        `(côtes : ${file.coast.coastline}).`;
+      bar.querySelector('.stages').innerHTML =
+        `<button type="button" class="tab voyage" data-leg="">Voyage</button>` +
+        file.legs.map(leg => `<button type="button" class="tab" data-leg="${escapeHtml(leg['Étape'])}" ` +
+          `title="${escapeHtml(leg['Zone / itinéraire'])}">${escapeHtml(leg['Étape'])}</button>`).join('');
+      bar.querySelectorAll('.stages .tab').forEach(tab =>
+        tab.addEventListener('click', () => goTo(legRoutes.get(tab.dataset.leg) ?? null)));
+    }
+
+
+    function goTo(route) {
+      const hash = route ? `#etape-${legKey(route)}` : '#voyage';
+      if (location.hash === hash) showView();
+      else location.hash = hash;
+    }
+
+    function showView() {
+      const route = legRoutes.get(location.hash.match(/^#etape-(\d+)$/)?.[1]);
+      if (route) showLeg(route);
+      else showVoyage();
+    }
+
+    window.addEventListener('hashchange', () => file && showView());
+
+    function markTabs() {
+      bar.querySelectorAll('.stages .tab').forEach(tab => {
+        tab.classList.toggle('active', shownRoute ? tab.dataset.leg === legKey(shownRoute) : tab.dataset.leg === '');
+        tab.classList.toggle('has-manual', trials.has(tab.dataset.leg));
+      });
+    }
+
+    // The shown leg stands out; the others stay visible, faded.
+    function fadeOthers() {
+      legRoutes.forEach(route => {
+        const opacity = !shownRoute || route === shownRoute ? 1 : 0.3;
+        route.line.setStyle({ opacity });
+        trials.get(legKey(route))?.line.setStyle({ opacity });
+        route.number.setOpacity(opacity);
+      });
+    }
+
+    function showVoyage() {
+      stopEditing();
+      shownRoute = null;
+      legHighlight.remove();
+      statsPoints.remove();
+      fadeOthers();
+      markTabs();
+      renderVoyage();
+      side.scrollTop = 0;
+      map.fitBounds(allBounds, { padding: [20, 20] });
+    }
+
+    function showLeg(route) {
+      if (editing && editing !== route) stopEditing();
+      shownRoute = route;
+      fadeOthers();
+      markTabs();
+      legHighlight.setLatLngs(highlightPaths(route)).addTo(map).bringToBack();
+      if (trials.has(legKey(route)) && !editing) manualWind(route);
+      renderLeg(route);
+      side.scrollTop = 0;
+      map.fitBounds(L.latLngBounds(highlightPaths(route).flat()), { padding: [40, 40], maxZoom: 9 });
+    }
+
+    // Each of a leg's routes with its length and its wind, the auto route first.
+    function routeList(route) {
+      const list = [{ manual: false, nm: route.auto.nm, stats: route.auto.stats, mode: route.auto.mode }];
+      const trial = trials.get(legKey(route));
+      if (trial) {
+        list.push({ manual: true, nm: pathNm(trial.path), stats: manualWinds.get(manualKey(route))?.stats ?? null, mode: trial.mode });
+      }
+      return list;
+    }
+
+    // The distance sailed grows by this factor when the boat tacks whenever the wind blows from
+    // closer to the bow than it points: it then makes good cos(pointing) / cos(angle) of its speed.
+    // Hours of light air count as sailed straight.
+    function tackingFactor(offBow, pointing) {
+      const radians = degrees => degrees * Math.PI / 180;
+      return offBow.reduce((factor, share, degree) => {
+        const off = degree + 0.5;
+        return off < pointing ? factor + share * (Math.cos(radians(off)) / Math.cos(radians(pointing)) - 1) : factor;
+      }, 1);
+    }
+
+    const sailedNm = one => one.nm * tackingFactor(one.stats.offBow, pointingDeg);
+
+    const paceHtml = () =>
+      `<div class="pace">Vitesse moyenne <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd · ` +
+      `remonte au vent jusqu'à <input type="number" class="pointing" min="30" max="70" step="5" value="${pointingDeg}">° du vent</div>`;
+
+    function listenPace(box) {
+      box.querySelector('.speed')?.addEventListener('input', event => {
+        const speed = Number(event.target.value);
+        if (speed > 0) {
+          trialSpeed = speed;
+          markModified();
+          updateFigures();
+        }
+      });
+      box.querySelector('.pointing')?.addEventListener('input', event => {
+        const pointing = Number(event.target.value);
+        if (pointing >= 30 && pointing <= 70) {
+          pointingDeg = pointing;
+          markModified();
+          updateFigures();
+        }
+      });
+    }
+
+    // The figures that follow the speed and the pointing angle, redrawn without the fields being typed in.
+    function updateFigures() {
+      if (!shownRoute) {
+        side.querySelector('.voyage-figures').innerHTML = voyageTableHtml();
+        listenVoyageRows();
+        return;
+      }
+      const figures = side.querySelector('.wind-figures');
+      if (figures) figures.innerHTML = windTableHtml(shownRoute);
+      const trialFiguresBox = side.querySelector('.trial .figures');
+      if (trialFiguresBox) trialFiguresBox.innerHTML = trialFigures(shownRoute);
+    }
+
+    function voyageTableHtml() {
+      const lines = (list, value) => list.map(one => `<div class="${one.manual ? 'manual-text' : ''}">${value(one)}</div>`).join('');
+      const hours = one => (one.stats ? sailedNm(one) : one.nm) / trialSpeed;
+      const rows = [...legRoutes.values()].map(route => {
+        const { leg } = route;
+        const list = routeList(route);
+        const duration = one => (one.stats || one.mode === ROUTE_MODES.straight ? formatHours(hours(one)) : 'vent à calculer');
+        const margin = one => {
+          if (!one.stats && one.mode !== ROUTE_MODES.straight) return '—';
+          const left = plannedHours(leg) - hours(one);
+          return left >= 0 ? `+${formatHours(left)}` : `<span class="late">−${formatHours(left)}</span>`;
+        };
+        return `<tr data-leg="${escapeHtml(leg['Étape'])}" tabindex="0">` +
+          `<td class="leg">${escapeHtml(leg['Étape'])}</td>` +
+          `<td>${escapeHtml(leg['Zone / itinéraire'])}<div class="small">${escapeHtml(formatDate(leg['Départ prévu'], {}))} → ` +
+          `${escapeHtml(formatDate(leg['Arrivée prévue'], {}))}</div></td>` +
+          `<td>${lines(list, one => `${Math.round(one.nm)} NM`)}</td>` +
+          `<td>${lines(list, duration)}</td>` +
+          `<td>${lines(list, one => (one.stats ? windPercent(one.stats.shares.close) : '—'))}</td>` +
+          `<td>${lines(list, margin)}</td></tr>`;
+      }).join('');
+      const autos = [...legRoutes.values()].map(route => routeList(route)[0]);
+      const totalNm = autos.reduce((sum, one) => sum + one.nm, 0);
+      const totalHours = autos.reduce((sum, one) => sum + hours(one), 0);
+      return `<table class="figures-table voyage-table"><thead><tr><th>Étape</th><th>Trajet</th><th>Distance</th>` +
+        `<th>Durée en tirant des bords${why('tacking')}</th><th>Vent de face${why('shares')}</th><th>Marge${why('margin')}</th></tr></thead>` +
+        `<tbody>${rows}</tbody>` +
+        `<tfoot><tr class="total"><td></td><td>Parcours auto, en tout</td><td>${Math.round(totalNm)} NM</td>` +
+        `<td>${formatHours(totalHours)}</td><td></td><td></td></tr></tfoot></table>`;
+    }
+
+    function listenVoyageRows() {
+      side.querySelectorAll('.voyage-table tbody tr').forEach(row => {
+        const open = () => goTo(legRoutes.get(row.dataset.leg));
+        row.addEventListener('click', event => !event.target.closest('.why') && open());
+        row.addEventListener('keydown', event => event.key === 'Enter' && open());
+      });
+    }
+
+    function renderVoyage() {
+      const first = formatDate(file.legs[0]['Départ prévu']);
+      const last = formatDate(file.legs.at(-1)['Arrivée prévue']);
+      side.innerHTML =
+        `<h2>Le voyage · ${file.legs.length} étapes</h2>` +
+        `<div class="small">Du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports aux positions du tableur, parcours calculés entre eux. ` +
+        `Parcours auto en bleu, parcours manuel en violet. Cliquer sur une étape pour son détail.</div>` +
+        paceHtml() +
+        `<div class="voyage-figures">${voyageTableHtml()}</div>` +
+        `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
+      listenPace(side);
+      listenVoyageRows();
+    }
+
+
+    // The workbook's distance stays first: the computed lengths are ours, and say so.
+    function legDistances(route) {
+      const trial = trials.get(legKey(route));
+      return `Tableur : ${escapeHtml(formatDistance(route.leg['Distance estimée (NM)']))} · ` +
+        `parcours auto : ${Math.round(route.auto.nm)} NM${route.auto.mode === ROUTE_MODES.straight ? ' (ligne droite)' : ''}` +
+        (trial ? ` · <span class="manual-text">parcours manuel : ${Math.round(pathNm(trial.path))} NM</span>` : '');
+    }
+
+    // The leg's band under both its routes when it has a manual one.
+    const highlightPaths = route => (trials.has(legKey(route)) ? [route.path, trials.get(legKey(route)).path] : [route.path]);
+
+    function renderLeg(route) {
+      const { leg } = route;
+      const trial = trials.get(legKey(route));
+      side.innerHTML =
+        `<h2>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</h2>` +
+        `<div class="small">${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))} · ` +
+        `${plannedHours(leg) / 24} jours prévus</div>` +
+        `<div class="small leg-distances">${legDistances(route)}</div>` +
+        (route.auto.missing ? `<div class="small warning">Parcours auto absent du fichier : tracé en ligne droite, ./update.sh le calcule.</div>` : '') +
+        `<div class="trial"></div>` +
+        `<div class="wind-block"></div>` +
+        `<h3>Liens</h3><div class="small leg-links"></div>` +
+        `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
+      showTrialPanel();
+      renderWindBlock(route);
+      showLegLinks(route);
+      if (trial) loadCoastMask();
+    }
+
+    function showLegLinks(route) {
+      const box = side.querySelector('.leg-links');
+      if (!box || shownRoute !== route) return;
+      const trial = trials.get(legKey(route));
+      box.innerHTML = `<a href="${windyRouteLink(route.path)}" target="_blank" rel="noopener">Parcours auto sur Windy ↗</a>` +
+        (trial ? ` · <a href="${windyRouteLink(trial.path)}" target="_blank" rel="noopener" class="manual-text">Parcours manuel sur Windy ↗</a>` : '') +
+        ` (la vitesse du bateau et les milles se règlent une fois dans Windy)`;
     }
 
     const WIND_ROWS = [
@@ -259,7 +713,7 @@
       ['gale', 'Force 7 et plus'],
     ];
 
-    // What a « ? » of the window of the roses explains: only what the figures beside it need.
+    // What a « ? » explains: only what the figures beside it need.
     const EXPLANATIONS = {
       roses: () => `Chaque heure, la direction du vent est prise par rapport au cap du parcours à ce point : un vent du ` +
         `nord vient de l'avant quand le bateau monte au nord. Un pétale n'est donc pas un point : il réunit toutes les ` +
@@ -275,7 +729,7 @@
           `l'avant, il zigzague et avance moins vite vers son but : ${examples}. Ces heures-là comptent à vitesse ` +
           `réduite, les autres à la vitesse moyenne. La distance est le chemin parcouru sur l'eau : à la même vitesse, ` +
           `elle s'allonge comme la durée. Sous ${windStats.thresholds.lightKn} nd de vent, pas d'allure : ces heures ` +
-          `comptent comme route directe.`;
+          `comptent comme route directe. Un parcours en ligne droite (canal) n'a pas de vent calculé : sa durée est en route directe.`;
       },
       shares: () => {
         const t = windStats.thresholds;
@@ -285,9 +739,32 @@
       },
       years: () => `La part de vent de face de l'année la plus facile et de la plus dure, de ${windStats.years[0]} ` +
         `à ${windStats.years[1]}.`,
+      margin: () => `Les jours que le tableur prévoit pour l'étape, dates de départ et d'arrivée comprises, moins la durée ` +
+        `en tirant des bords à la vitesse moyenne.`,
     };
 
     const why = key => ` <button type="button" class="why" data-why="${key}" aria-label="Explication">?</button>`;
+    const whyTip = document.querySelector('.why-tip');
+
+    function showWhy(button) {
+      whyTip.innerHTML = EXPLANATIONS[button.dataset.why]();
+      whyTip.hidden = false;
+      const at = button.getBoundingClientRect();
+      whyTip.style.left = `${Math.max(4, Math.min(at.left - 8, innerWidth - whyTip.offsetWidth - 4))}px`;
+      const below = at.bottom + 6;
+      whyTip.style.top = `${below + whyTip.offsetHeight > innerHeight ? Math.max(4, at.top - whyTip.offsetHeight - 6) : below}px`;
+    }
+
+    // Hover or focus shows an explanation; a tap, where there is no hover, shows it until the next one.
+    ['pointerover', 'focusin', 'click'].forEach(type => document.addEventListener(type, event => {
+      const button = event.target.closest?.('.why');
+      if (button) showWhy(button);
+      else if (type === 'click') whyTip.hidden = true;
+    }));
+    document.addEventListener('pointerout', event => event.pointerType === 'mouse' && event.target.closest?.('.why') && (whyTip.hidden = true));
+    document.addEventListener('focusout', event => event.target.closest?.('.why') && (whyTip.hidden = true));
+    side.addEventListener('scroll', () => { whyTip.hidden = true; });
+    side.addEventListener('click', event => event.target.closest('.wind-manual') && shownRoute && manualWind(shownRoute));
 
     function manualProgressHtml(entry) {
       if (entry.error) {
@@ -305,174 +782,139 @@
       return `${windPercent(easiest.close)} (${easiest.year}) à ${windPercent(hardest.close)} (${hardest.year})`;
     }
 
-    // The time over a route grows by this factor when the boat tacks whenever the wind blows from
-    // closer to the bow than it points: it then makes good cos(pointing) / cos(angle) of its speed.
-    // Hours of light air count as sailed straight.
-    function tackingFactor(offBow, pointing) {
-      const radians = degrees => degrees * Math.PI / 180;
-      return offBow.reduce((factor, share, degree) => {
-        const off = degree + 0.5;
-        return off < pointing ? factor + share * (Math.cos(radians(off)) / Math.cos(radians(pointing)) - 1) : factor;
-      }, 1);
-    }
-
-    // Each route's length and time at the chosen speed, then its share of the time by point of sail;
-    // the manual route's column waits for its wind.
+    // Each route's length and time at the chosen speed, straight and tacking, then its share of
+    // the time by point of sail; a route whose wind is missing shows a dash.
     function windTableHtml(route) {
-      const auto = { nm: route.leg.route.nm, stats: autoWind(route.leg) };
-      const trial = trials.get(legKey(route));
-      const manual = trial ? { nm: pathNm(trial.path), stats: manualWinds.get(manualKey(route))?.stats } : null;
-      const routes = manual ? [auto, manual] : [auto];
-      const cells = (value, needsWind = true) => routes.map((one, i) =>
-        `<td${i ? ' class="manual-text"' : ''}>${one.stats || !needsWind ? value(one) : '—'}</td>`).join('');
-      const sailed = one => one.nm * tackingFactor(one.stats.offBow, pointingDeg);
+      const routes = routeList(route);
+      const cells = (value, needsWind = true) => routes.map(one =>
+        `<td${one.manual ? ' class="manual-text"' : ''}>${one.stats || !needsWind ? value(one) : '—'}</td>`).join('');
       const direct = one => one.nm / trialSpeed;
-      const tacking = one => sailed(one) / trialSpeed;
-      return `<table class="wind-table"><tr><th>En route directe</th><th>Parcours auto</th>` +
-        (manual ? `<th class="manual-text">Parcours manuel</th>` : '') + `</tr>` +
+      const tacking = one => sailedNm(one) / trialSpeed;
+      return `<table class="figures-table"><tr><th>En route directe</th><th>Parcours auto</th>` +
+        (routes.length > 1 ? `<th class="manual-text">Parcours manuel</th>` : '') + `</tr>` +
         `<tr><td>Distance</td>${cells(one => `${Math.round(one.nm)} NM`, false)}</tr>` +
         `<tr><td>Durée à ${trialSpeed} nd</td>${cells(one => formatHours(direct(one)), false)}</tr>` +
         `<tr class="group"><th colspan="${routes.length + 1}">En tirant des bords${why('tacking')}</th></tr>` +
-        `<tr><td>Distance</td>${cells(one =>
-          `${Math.round(sailed(one))} NM (+${Math.round(sailed(one) - one.nm)})`)}</tr>` +
+        `<tr><td>Distance</td>${cells(one => `${Math.round(sailedNm(one))} NM (+${Math.round(sailedNm(one) - one.nm)})`)}</tr>` +
         `<tr><td>Durée à ${trialSpeed} nd</td>${cells(one =>
           `${formatHours(tacking(one))} (+${formatHours(tacking(one) - direct(one))})`)}</tr>` +
+        `<tr><td>Marge${why('margin')}</td>${cells(one => {
+          // A route in a straight line has no wind: its margin is on its time sailed straight.
+          if (!one.stats && one.mode !== ROUTE_MODES.straight) return '—';
+          const left = plannedHours(route.leg) - (one.stats ? tacking(one) : direct(one));
+          return left >= 0 ? `+${formatHours(left)}` : `<span class="warning">−${formatHours(left)}</span>`;
+        }, false)}</tr>` +
         `<tr class="group"><th colspan="${routes.length + 1}">Part du temps${why('shares')}</th></tr>` +
         WIND_ROWS.map(([key, label]) => `<tr><td>${label}</td>${cells(one => windPercent(one.stats.shares[key]))}</tr>`).join('') +
         `<tr><td>Vent de face selon les années${why('years')}</td>${cells(one => closeHauledRange(one.stats))}</tr>` +
         `</table>`;
     }
 
-    // The window of the roses: the auto route's and, when there is one, the manual route's, each the
-    // sum of its points' roses turned to the boat's course there.
-    const windWindow = document.querySelector('.wind-window');
-    const statsPoints = L.layerGroup();
-    let windowRoute = null;
+    const manualKey = route => {
+      const trial = trials.get(legKey(route));
+      return trial && routeFingerprint(route.leg, trial.mode, trial.points.map(({ lat, lng }) => [lat, lng]));
+    };
 
-    function closeWindWindow() {
-      windWindow.hidden = true;
-      windowRoute = null;
-      statsPoints.remove();
+    // The wind of a manual route sailed by sea, computed in the browser once per route definition.
+    function manualWind(route) {
+      const key = manualKey(route);
+      const trial = trials.get(legKey(route));
+      if (!key || trial.mode !== ROUTE_MODES.sea || !trial.path) return null;
+      if (!manualWinds.has(key) || manualWinds.get(key).error) {
+        const entry = { done: 0, total: 0, pause: 0, stats: null, error: null };
+        manualWinds.set(key, entry);
+        routeWindStats(trial.path, route.leg, windStats, {
+          onProgress: (done, total, pause) => {
+            Object.assign(entry, { done, total, pause: pause ?? 0 });
+            refreshWind(route, key);
+          },
+        })
+          .then(stats => { entry.stats = stats; }, error => { entry.error = error; })
+          .finally(() => refreshWind(route, key));
+      }
+      return manualWinds.get(key);
     }
 
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !windWindow.hidden) closeWindWindow();
-    });
-
-    function showWhy(button) {
-      const tip = windWindow.querySelector('.why-tip');
-      tip.innerHTML = EXPLANATIONS[button.dataset.why]();
-      tip.hidden = false;
-      const box = windWindow.getBoundingClientRect();
-      const at = button.getBoundingClientRect();
-      tip.style.left = `${Math.max(4, Math.min(at.left - box.left - 8, windWindow.clientWidth - tip.offsetWidth - 4))}px`;
-      tip.style.top = `${at.bottom - box.top + windWindow.scrollTop + 6}px`;
+    function refreshWind(route, key) {
+      if (!shownRoute) {
+        if (side.querySelector('.voyage-figures') && manualWinds.get(key)?.stats) updateFigures();
+        return;
+      }
+      if (shownRoute !== route || manualKey(route) !== key) return;
+      const entry = manualWinds.get(key);
+      const column = side.querySelector('.manual-column');
+      // Only the progress of the requests is redrawn in place; the result changes the common scale.
+      if (column && entry && !entry.stats && !entry.error) {
+        column.innerHTML = manualColumnHtml(route, windowPeak(route));
+        return;
+      }
+      renderWindBlock(route);
+      const figures = side.querySelector('.trial .figures');
+      if (figures) figures.innerHTML = trialFigures(route);
     }
-
-    function hideWhy() {
-      windWindow.querySelector('.why-tip').hidden = true;
-    }
-
-    // Hover or focus shows an explanation; a tap, where there is no hover, shows it until the next one.
-    ['pointerover', 'focusin', 'click'].forEach(type => windWindow.addEventListener(type, event => {
-      const button = event.target.closest('.why');
-      if (button) showWhy(button);
-      else if (type === 'click') hideWhy();
-    }));
-    windWindow.addEventListener('pointerout', event => event.pointerType === 'mouse' && event.target.closest('.why') && hideWhy());
-    windWindow.addEventListener('focusout', event => event.target.closest('.why') && hideWhy());
 
     function drawStatsPoints(route) {
       statsPoints.clearLayers();
-      const manual = manualWinds.get(manualKey(route))?.stats;
-      [[autoWind(route.leg), ROUTE_COLOR], [trials.has(legKey(route)) ? manual : null, TRIAL_COLOR]].forEach(([stats, color]) =>
-        stats?.points.forEach(([lat, lon]) => L.circleMarker([lat, lon], {
-          radius: 5, color, weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false,
-        }).addTo(statsPoints)));
+      routeList(route).forEach(one => one.stats?.points.forEach(([lat, lon]) => L.circleMarker([lat, lon], {
+        radius: 5, color: one.manual ? TRIAL_COLOR : ROUTE_COLOR, weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false,
+      }).addTo(statsPoints)));
       statsPoints.addTo(map);
     }
 
     // Both roses on one scale, the largest petal of either, so that a longer petal is a larger share.
     function windowPeak(route) {
-      const manual = manualWinds.get(manualKey(route))?.stats;
-      return Math.max(...[autoWind(route.leg), trials.has(legKey(route)) ? manual : null]
-        .filter(Boolean).flatMap(stats => stats.aroundBoat.map(sector => sector.reduce((a, b) => a + b, 0))));
+      const sectors = routeList(route).filter(one => one.stats)
+        .flatMap(one => one.stats.aroundBoat.map(sector => sector.reduce((a, b) => a + b, 0)));
+      return sectors.length ? Math.max(...sectors) : 1;
     }
 
     function manualColumnHtml(route, peak) {
       const trial = trials.get(legKey(route));
-      const head = `<h3 class="manual-text">Parcours manuel · ${Math.round(pathNm(trial.path))} NM</h3>`;
+      const head = `<h4 class="manual-text">Parcours manuel · ${Math.round(pathNm(trial.path))} NM</h4>`;
       const entry = manualWinds.get(manualKey(route));
-      if (!entry) return head + `<button type="button" class="wind-manual">Calculer son vent</button>`;
+      if (!entry) return head + `<div class="small"><button type="button" class="wind-manual">Calculer son vent</button></div>`;
       if (!entry.stats) return head + manualProgressHtml(entry);
       return head + boatRoseSvg(entry.stats.aroundBoat, windStats.thresholds, peak, 'manual');
     }
 
-    // Opened from its button, the window starts the manual route's wind; redrawn while passages
-    // move, it waits to be asked, so that a route still being drawn costs no request.
-    function openWindWindow(route, { compute = true } = {}) {
+    function windBlockHtml(route) {
       const { leg } = route;
-      const auto = autoWind(leg);
       const { thresholds: t, years: [first, last], marginDays } = windStats;
       const trial = trials.get(legKey(route));
-      windowRoute = route;
-      if (trial && coast && compute) manualWind(route);
+      const bySea = [route.auto.mode, trial?.mode].includes(ROUTE_MODES.sea);
+      if (!bySea) {
+        return `<h3>Durées</h3><div class="small">Étape en ligne droite (canal) : pas de vent calculé, durées en route directe.</div>` +
+          paceHtml() + `<div class="wind-figures">${windTableHtml(route)}</div>`;
+      }
       const peak = windowPeak(route);
-      windWindow.hidden = false;
-      windWindow.innerHTML =
-        `<button class="close" aria-label="Fermer">×</button>` +
-        `<h2>Étape ${escapeHtml(leg['Étape'])} · le vent vu du bateau</h2>` +
-        `<p class="small">Chaque pétale est une direction d'où vient le vent par rapport au bateau, l'avant en haut ` +
+      const autoHead = `<h4>Parcours auto · ${Math.round(route.auto.nm)} NM</h4>`;
+      const autoColumn = route.auto.stats
+        ? autoHead + boatRoseSvg(route.auto.stats.aroundBoat, t, peak, 'auto')
+        : autoHead + `<div class="small">${route.auto.mode === ROUTE_MODES.straight
+          ? 'En ligne droite (canal) : pas de vent calculé.'
+          : 'Vent à calculer : ./update.sh le calcule pour le parcours auto.'}</div>`;
+      return `<h3>Le vent vu du bateau</h3>` +
+        `<div class="small">Chaque pétale est une direction d'où vient le vent par rapport au bateau, l'avant en haut ` +
         `quel que soit le cap. Sa longueur : la part du temps ; ses couleurs : la force. ` +
-        `${trial ? 'Les deux roses ont la même échelle. ' : ''}Survoler un pétale pour le détail.${why('roses')}</p>` +
-        `<div class="roses">` +
-        `<div><h3>Parcours auto · ${leg.route.nm} NM</h3>${boatRoseSvg(auto.aroundBoat, t, peak, 'auto')}</div>` +
-        (trial ? `<div class="manual-column">${manualColumnHtml(route, peak)}</div>` : '') +
+        `${trial ? 'Les deux roses ont la même échelle. ' : ''}Survoler un pétale pour le détail.${why('roses')}</div>` +
+        `<div class="roses"><div>${autoColumn}</div>` +
+        (trial && trial.mode === ROUTE_MODES.sea ? `<div class="manual-column">${manualColumnHtml(route, peak)}</div>` : '') +
         `</div>` +
         `<p class="period">Le vent du ${dayMonth(leg['Départ prévu'], -marginDays)} au ${dayMonth(leg['Arrivée prévue'], marginDays)}, ` +
         `chaque année de ${first} à ${last}${why('period')}<span>les dates de l'étape, ${marginDays} jours de marge de chaque côté</span></p>` +
         speedScale() +
-        `<div class="pace">Vitesse moyenne <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd · ` +
-        `remonte au vent jusqu'à <input type="number" class="pointing" min="30" max="70" step="5" value="${pointingDeg}">° du vent</div>` +
-        `<div class="wind-figures">${windTableHtml(route)}</div>` +
-        `<p class="credit">Données : Open-Meteo.com (CC BY 4.0).</p>` +
-        `<div class="rose-tip" hidden></div><div class="why-tip" hidden></div>`;
-      windWindow.querySelector('.close').addEventListener('click', closeWindWindow);
-      windWindow.querySelector('.speed').addEventListener('input', event => {
-        if (Number(event.target.value) > 0) setSpeed(Number(event.target.value));
-      });
-      windWindow.querySelector('.pointing').addEventListener('input', event => {
-        const pointing = Number(event.target.value);
-        if (pointing >= 30 && pointing <= 70) {
-          pointingDeg = pointing;
-          windWindow.querySelector('.wind-figures').innerHTML = windTableHtml(route);
-        }
-      });
-      listenManualButton(route);
+        paceHtml() +
+        `<div class="wind-figures">${windTableHtml(route)}</div>`;
+    }
+
+    function renderWindBlock(route) {
+      const block = side.querySelector('.wind-block');
+      if (!block || shownRoute !== route) return;
+      block.innerHTML = windBlockHtml(route);
+      listenPace(block);
       listenRoseTips(route);
       drawStatsPoints(route);
     }
-
-    function listenManualButton(route) {
-      windWindow.querySelector('.wind-manual')?.addEventListener('click', () => manualWind(route));
-    }
-
-    function refreshWind(route) {
-      if (windowRoute !== route || windWindow.hidden) return;
-      const column = windWindow.querySelector('.manual-column');
-      const entry = manualWinds.get(manualKey(route));
-      // A manual route created, deleted or just computed changes the columns or the common scale;
-      // only the progress of its requests is redrawn in place.
-      if (!column !== !trials.has(legKey(route)) || !entry || entry.stats) {
-        openWindWindow(route, { compute: false });
-        return;
-      }
-      column.innerHTML = manualColumnHtml(route);
-      listenManualButton(route);
-      drawStatsPoints(route);
-    }
-
-    const tipPercent = share => `${(share * 100).toLocaleString('fr-CH', { maximumFractionDigits: share < 0.1 ? 1 : 0 })} %`;
 
     // Where a petal's wind comes from, seen from the boat, and the point of sail it means.
     function petalName(sector, t) {
@@ -486,13 +928,11 @@
 
     // The tooltip of a petal: its share of the time by force, and the other route's same petal.
     function listenRoseTips(route) {
-      const tip = windWindow.querySelector('.rose-tip');
-      const stats = {
-        auto: autoWind(route.leg),
-        manual: trials.has(legKey(route)) ? manualWinds.get(manualKey(route))?.stats : null,
-      };
+      const tip = document.querySelector('.rose-tip');
+      const list = routeList(route);
+      const stats = { auto: list[0].stats, manual: list[1]?.stats ?? null };
       const names = { auto: 'parcours auto', manual: 'parcours manuel' };
-      windWindow.querySelectorAll('.boat-rose').forEach(svg => {
+      side.querySelectorAll('.boat-rose').forEach(svg => {
         const own = svg.dataset.route;
         const other = own === 'auto' ? 'manual' : 'auto';
         svg.addEventListener('pointermove', event => {
@@ -512,10 +952,8 @@
               ? `<br><span class="other">Sur le ${names[other]} : ${tipPercent(stats[other].aroundBoat[sector].reduce((a, b) => a + b, 0))}</span>`
               : '');
           tip.hidden = false;
-          const box = windWindow.getBoundingClientRect();
-          const left = Math.min(event.clientX - box.left + 14, windWindow.clientWidth - tip.offsetWidth - 4);
-          tip.style.left = `${Math.max(4, left)}px`;
-          tip.style.top = `${event.clientY - box.top + windWindow.scrollTop + 14}px`;
+          tip.style.left = `${Math.max(4, Math.min(event.clientX + 14, innerWidth - tip.offsetWidth - 4))}px`;
+          tip.style.top = `${Math.min(event.clientY + 14, innerHeight - tip.offsetHeight - 4)}px`;
         });
         svg.addEventListener('pointerleave', () => { tip.hidden = true; });
       });
@@ -534,8 +972,8 @@
           const [x, y] = rosePoint(radius + 8, angle).split(',');
           return `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" class="allure-limit"/>`;
         }).join('');
-      const label = (x, y, side, allure) =>
-        `<text x="${x}" y="${y}" class="cardinal">${side}</text><text x="${x}" y="${y + 13}" class="allure">${allure}</text>`;
+      const label = (x, y, sideName, allure) =>
+        `<text x="${x}" y="${y}" class="cardinal">${sideName}</text><text x="${x}" y="${y + 13}" class="allure">${allure}</text>`;
       const hits = aroundBoat.map((_, s) =>
         `<path d="M${center},${center} L${rosePoint(radius, s * 22.5 - 11.25)} A${radius},${radius} 0 0 1 ${rosePoint(radius, s * 22.5 + 11.25)}Z" ` +
         `class="hit" data-sector="${s}"/>`).join('');
@@ -551,97 +989,9 @@
         `</svg>`;
     }
 
-    function formatDistance(value) {
-      const text = String(value ?? '');
-      return text.includes('NM') ? text : `${text} NM`;
-    }
 
-    // The workbook's distance stays first: the computed length is ours, and says so.
-    function legDistances(leg) {
-      const manual = trials.get(leg['Étape']);
-      return `Tableur : ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))} · ` +
-        (leg.route ? `parcours auto : ${leg.route.nm} NM` : 'parcours auto : ligne droite (canal)') +
-        (manual ? ` · <span class="manual-text">parcours manuel : ${Math.round(pathNm(manual.path))} NM</span>` : '');
-    }
-
-    // The leg's band under both its routes when it has a manual one.
-    const highlightPaths = route => (trials.has(legKey(route)) ? [route.path, trials.get(legKey(route)).path] : route.path);
-
-    function showLegLinks(route) {
-      const box = legPanel.querySelector('.leg-links');
-      if (!box || shownRoute !== route) return;
-      const manual = trials.get(legKey(route));
-      box.innerHTML = `<a href="${windyRouteLink(route.path)}" target="_blank" rel="noopener">Parcours auto sur Windy ↗</a>` +
-        (manual ? ` · <a href="${windyRouteLink(manual.path)}" target="_blank" rel="noopener" class="manual-text">Parcours manuel sur Windy ↗</a>` : '') +
-        ` (la vitesse du bateau et les milles se règlent une fois dans Windy)`;
-    }
-
-    const formatPosition = ([lat, lon]) =>
-      `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'O'}`;
-
-    // A click on a leg opens its panel.
-    function openLeg(route) {
-      closeWindWindow();
-      if (editing && editing !== route) stopEditing();
-      showLegPanel(route);
-    }
-
-    function closeLegPanel() {
-      stopEditing();
-      closeWindWindow();
-      legPanel.hidden = true;
-      shownRoute = null;
-      legHighlight.remove();
-    }
-
-    function showLegPanel(route) {
-      const { leg } = route;
-      shownRoute = route;
-      legHighlight.setLatLngs(highlightPaths(route)).addTo(map).bringToBack();
-      legPanel.hidden = false;
-      legPanel.innerHTML =
-        `<button class="close" aria-label="Fermer">×</button>` +
-        `<h2>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</h2>` +
-        `<div class="small">${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}</div>` +
-        `<div class="small leg-distances">${legDistances(leg)}</div>` +
-        windSectionHtml(route) +
-        `<div class="trial"></div>` +
-        `<h3>Liens</h3><div class="small leg-links"></div>`;
-      showTrialPanel();
-      showLegLinks(route);
-      legPanel.querySelector('.wind-how')?.addEventListener('click', () => openWindWindow(route));
-      legPanel.querySelector('.close').addEventListener('click', closeLegPanel);
-    }
-
-    // « Et si… ? » : passages the viewer places on a leg. The leg's path is recomputed through them,
-    // by sea, on the coast mask the export wrote (sea-route.js), so that their coordinates can be
-    // copied into the workbook. Each leg keeps its passages in this browser only (`trial|<leg>`):
-    // the workbook stays the only source of the voyage.
-    const METERS_PER_NM = 1852;
-    let voyageRoute;
-    let shownRoute = null;
-    const legRoutes = new Map();
-    const trials = new Map();
-    const seaStretches = new Map();
-    let editing = null;
-    let trialMessage = '';
-    let trialSpeed = 5;
-    // How close to the wind the boat sails, in degrees: closer than that, it tacks.
-    let pointingDeg = 45;
-
-    // One speed for the manual route's panel and the window of the roses, whichever sets it.
-    function setSpeed(speed) {
-      trialSpeed = speed;
-      for (const field of document.querySelectorAll('.leg-panel .speed, .wind-window .speed')) {
-        if (Number(field.value) !== speed) field.value = speed;
-      }
-      const figures = legPanel.querySelector('.trial .figures');
-      if (figures && shownRoute) figures.innerHTML = trialFigures(shownRoute);
-      if (windowRoute && !windWindow.hidden) windWindow.querySelector('.wind-figures').innerHTML = windTableHtml(windowRoute);
-    }
-    let coastMask;
-    let coast = null;
-
+    // The coast mask is the site's: sea-mask.png and the site's copy of the routes file are written
+    // together, so its place on the globe is read from the latter, whatever file is open.
     function loadCoastMask() {
       coastMask ??= new Promise((resolve, reject) => {
         const image = new Image();
@@ -650,14 +1000,14 @@
           const context = canvas.getContext('2d', { willReadFrequently: true });
           context.drawImage(image, 0, 0);
           const { data } = context.getImageData(0, 0, image.width, image.height);
-          resolve({ ...voyageRoute.mask, width: image.width, height: image.height, data });
+          resolve({ ...siteFile.mask, width: image.width, height: image.height, data });
         };
-        image.onerror = () => reject(new Error(`${voyageRoute.mask.file} introuvable`));
-        image.src = voyageRoute.mask.file;
+        image.onerror = () => reject(new Error(`${siteFile.mask.file} introuvable`));
+        image.src = siteFile.mask.file;
       }).then(
         mask => {
           coast = mask;
-          trials.forEach((trial, key) => setPassages(legRoutes.get(key), trial.points));
+          trials.forEach((trial, key) => placePassages(legRoutes.get(key), trial.points, trial.mode));
         },
         () => {
           trialMessage = 'Côtes indisponibles : les passages ne sont ni contrôlés ni contournés.';
@@ -677,25 +1027,11 @@
       return level < 64 ? 'sea' : level < 192 ? 'coast' : 'land';
     }
 
-    const legKey = route => route.leg['Étape'];
-    const legPath = route => trials.get(legKey(route))?.path ?? route.path;
-    const pathNm = path => path.slice(1).reduce((sum, to, i) => sum + map.distance(path[i], to), 0) / METERS_PER_NM;
-    const passagesText = points => points.map(({ lat, lng }) => `${lat.toFixed(4)}, ${lng.toFixed(4)}`).join('; ');
-
-    function formatHours(hours) {
-      const total = Math.round(Math.abs(hours));
-      const days = Math.floor(total / 24);
-      return days ? `${days} j ${total % 24} h` : `${total} h`;
-    }
-
-    // Straight between the passages until the mask is there, by sea once it is.
-    // The export computes no path for a leg through a canal: the coastline has no canals. Its passages
-    // may lie on land, along the canal, and are joined in straight lines.
-    const throughCanal = route => !route.leg.route;
-
-    function trialPath(route, points) {
+    // Straight between the passages until the mask is there, by sea once it is; a route in « ligne
+    // droite » (a canal: the coastline has none) joins them straight, on land if it must.
+    function trialPath(route, points, mode) {
       const stops = [route.ends[0], ...points.map(({ lat, lng }) => [lat, lng]), route.ends[1]];
-      if (!coast || throughCanal(route)) return stops;
+      if (!coast || mode === ROUTE_MODES.straight) return stops;
       return stops.slice(1).reduce((path, to, i) => {
         const key = `${stops[i]}>${to}`;
         if (!seaStretches.has(key)) seaStretches.set(key, seaRoute(coast, stops[i], to));
@@ -703,26 +1039,31 @@
       }, [stops[0]]);
     }
 
-    function setPassages(route, points) {
+    // The passages of a leg's manual route, its path recomputed: drawn, not yet a change.
+    function placePassages(route, points, mode) {
       const key = legKey(route);
       if (!trials.has(key)) {
         const line = L.polyline([], { color: TRIAL_COLOR, weight: 3, bubblingMouseEvents: false });
         line.bindTooltip(() => `<b>Étape ${escapeHtml(key)} · parcours manuel</b><br>` +
           `${Math.round(pathNm(trials.get(key)?.path ?? []))} NM`, { sticky: true });
-        line.on('click', event => (editing ? addTrialPoint(event.latlng) : openLeg(route)));
-        trials.set(key, { points: [], path: null, markers: L.layerGroup(), line });
+        line.on('click', event => (editing ? addTrialPoint(event.latlng) : goTo(route)));
+        trials.set(key, { points: [], path: null, mode: mode ?? route.auto.mode, markers: L.layerGroup(), line });
       }
       const trial = trials.get(key);
       try {
-        trial.path = points.length ? trialPath(route, points) : null;
+        trial.path = points.length ? trialPath(route, points, trial.mode) : null;
         trial.points = points;
         trialMessage = '';
       } catch (error) {
         trialMessage = `Point refusé : ${error.message}.`;
       }
-      if (trial.points.length) storeSet(`trial|${key}`, trial.points.map(({ lat, lng }) => [lat, lng]));
-      else storeDrop(stored => stored === `trial|${key}`);
       drawLeg(route);
+    }
+
+    // A passage placed, moved or removed by hand: the file has changed.
+    function setPassages(route, points) {
+      placePassages(route, points);
+      markModified();
       showTrialPanel();
     }
 
@@ -744,7 +1085,7 @@
           marker
             .on('click', () => setPassages(route, trial.points.filter((_, j) => j !== i)))
             .on('dragend', event => {
-              const at = event.target.getLatLng().wrap();
+              const at = rounded(event.target.getLatLng().wrap());
               trialMessage = refusal(route, at);
               if (trialMessage) {
                 drawLeg(route);
@@ -759,63 +1100,18 @@
         trial.line.remove();
         trials.delete(key);
       }
-      if (shownRoute === route) {
-        if (map.hasLayer(legHighlight)) legHighlight.setLatLngs(highlightPaths(route));
-        const distances = legPanel.querySelector('.leg-distances');
-        if (distances) distances.innerHTML = legDistances(route.leg);
-        showLegLinks(route);
-      }
-      refreshWind(route);
       document.querySelector('.legend .trial-legend').hidden = trials.size === 0;
-      showTrialsExport();
-    }
-
-    // One row per leg, in the workbook's order, so that the passages paste as one column beside it.
-    function trialsTable() {
-      const header = ['Étape', 'Zone / itinéraire', 'Passages imposés', 'Parcours manuel (NM)', 'Parcours auto (NM)', 'Tableur (NM)'];
-      return [header, ...[...legRoutes.values()].map(route => {
-        const trial = trials.get(legKey(route));
-        return [
-          legKey(route),
-          route.leg['Zone / itinéraire'] ?? '',
-          trial ? passagesText(trial.points) : '',
-          trial ? String(Math.round(pathNm(trial.path))) : '',
-          String(route.leg.route?.nm ?? ''),
-          String(route.leg['Distance estimée (NM)'] ?? ''),
-        ];
-      })];
-    }
-
-    function showTrialsExport() {
-      const box = document.querySelector('.legend .trials-export');
-      if (!box) return;
-      box.hidden = trials.size === 0;
-      if (box.hidden) return;
-      const count = trials.size;
-      box.innerHTML = `<span>${count} parcours manuel${count > 1 ? 's' : ''} :</span>` +
-        `<button type="button" class="csv">Télécharger en CSV</button>` +
-        `<button type="button" class="tsv">Copier pour Excel</button>`;
-      box.querySelector('.csv').addEventListener('click', () => {
-        // Semicolons and a byte-order mark: what a French Excel opens without asking.
-        const cell = value => (/[";\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
-        const csv = '\uFEFF' + trialsTable().map(row => row.map(cell).join(';')).join('\r\n') + '\r\n';
-        const link = Object.assign(document.createElement('a'), {
-          href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })),
-          download: 'njord-passages.csv',
-        });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        // Revoked at once, the address would be gone before the browser starts the download.
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-      });
-      box.querySelector('.tsv').addEventListener('click', event => {
-        // Tabs and line breaks: Excel spreads a pasted text over cells.
-        const text = trialsTable().map(row => row.join('\t')).join('\n');
-        Promise.resolve().then(() => navigator.clipboard.writeText(text))
-          .then(() => { event.target.textContent = 'Copié'; })
-          .catch(() => { event.target.textContent = 'Copie refusée par le navigateur : utiliser le CSV'; });
-      });
+      markTabs();
+      fadeOthers();
+      if (shownRoute === route) {
+        legHighlight.setLatLngs(highlightPaths(route));
+        const distances = side.querySelector('.leg-distances');
+        if (distances) distances.innerHTML = legDistances(route);
+        showLegLinks(route);
+        renderWindBlock(route);
+      } else if (!shownRoute && side.querySelector('.voyage-figures')) {
+        updateFigures();
+      }
     }
 
     function startEditing(route) {
@@ -834,8 +1130,20 @@
       trialMessage = '';
       map.getContainer().classList.remove('trial-mode');
       drawLeg(route);
+      if (shownRoute === route) {
+        manualWind(route);
+        renderWindBlock(route);
+      }
       showTrialPanel();
     }
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && editing) stopEditing();
+    });
+
+    // Passages are written with four decimals, about ten metres: rounded where they are placed,
+    // they are the same before and after the file is saved, and so is the wind computed for them.
+    const rounded = ({ lat, lng }) => L.latLng(Math.round(lat * 1e4) / 1e4, Math.round(lng * 1e4) / 1e4);
 
     // A new passage goes where it lengthens the leg least: a click near a stretch bends that stretch.
     function insertionIndex(route, points, at) {
@@ -851,12 +1159,12 @@
 
     // The only rule: no passage on land, except along a canal.
     function refusal(route, at) {
-      if (throughCanal(route)) return '';
+      if (straightMode(route)) return '';
       return coast && coastAt(coast, at) === 'land' ? 'Point refusé : il est à terre.' : '';
     }
 
     function addTrialPoint(latlng) {
-      const at = latlng.wrap();
+      const at = rounded(latlng.wrap());
       trialMessage = refusal(editing, at);
       if (trialMessage) {
         showTrialPanel();
@@ -867,181 +1175,88 @@
       setPassages(editing, points);
     }
 
+    map.on('click', event => editing && addTrialPoint(event.latlng));
+
     function trialFigures(route) {
       if (!trials.has(legKey(route))) return 'Cliquer sur la carte pour poser un premier passage.';
-      const nm = pathNm(legPath(route));
-      const reference = route.leg.route
-        ? { nm: route.leg.route.nm, label: 'au parcours auto' }
-        : { nm: pathNm(route.ends), label: 'au parcours auto (ligne droite)' };
-      const delta = nm - reference.nm;
+      const nm = pathNm(trials.get(legKey(route)).path);
+      const delta = nm - route.auto.nm;
       const sign = delta >= 0 ? '+' : '−';
-      const hours = nm / trialSpeed;
-      const planned = (utcDate(route.leg['Arrivée prévue']) - utcDate(route.leg['Départ prévu'])) / 86_400_000 + 1;
-      const margin = planned * 24 - hours;
-      return `<b>${Math.round(nm)} NM</b> · ${formatHours(hours)} de navigation<br>` +
-        `${sign}${Math.round(Math.abs(delta))} NM, ${sign}${formatHours(delta / trialSpeed)} par rapport ${reference.label} ` +
-        `(${Math.round(reference.nm)} NM)<br>` +
-        (margin >= 0
-          ? `Marge : ${formatHours(margin)} sur ${planned} j prévus`
-          : `<span class="warning">Dépasse de ${formatHours(margin)} les ${planned} j prévus</span>`);
+      return `<b>${Math.round(nm)} NM</b>, ${sign}${Math.round(Math.abs(delta))} NM par rapport au parcours auto ` +
+        `(${Math.round(route.auto.nm)} NM) ; ses durées et sa marge sont dans le tableau du vent ci-dessous.`;
     }
 
     function showTrialPanel() {
-      const box = legPanel.querySelector('.trial');
+      const box = side.querySelector('.trial');
       const route = shownRoute;
-      if (!box || !route?.leg) return;
+      if (!box || !route) return;
       const points = trials.get(legKey(route))?.points ?? [];
       const isEditing = editing === route;
       if (!isEditing && !points.length) {
         box.innerHTML = `<button type="button" class="edit">Créer un parcours manuel</button>` +
           (trialMessage ? `<div class="warning">${escapeHtml(trialMessage)}</div>` : '');
       } else {
-        const passages = passagesText(points);
         box.innerHTML =
           `<h3>${isEditing ? 'Parcours manuel · modification' : 'Parcours manuel'}</h3>` +
           (isEditing
-            ? `<div class="small">${throughCanal(route)
+            ? `<div class="small">${straightMode(route)
               ? "Étape par un canal : poser les passages le long du canal, à terre s'il le faut ; ils sont reliés en ligne droite."
-              : "Cliquer sur la carte pour ajouter un passage : le parcours manuel est recalculé par la mer en passant par lui."} ` +
+              : 'Cliquer sur la carte pour ajouter un passage : le parcours manuel est recalculé par la mer en passant par lui.'} ` +
               `Glisser un passage pour le déplacer, cliquer dessus pour le retirer.</div>`
             : '') +
-          `<div class="small">Le parcours auto reste en bleu, le parcours manuel est en violet. Ses passages sont gardés ` +
-          `dans ce navigateur, jamais dans le tableur.</div>` +
-          `<label class="small">Vitesse <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd</label>` +
           `<div class="figures">${trialFigures(route)}</div>` +
           (trialMessage ? `<div class="warning">${escapeHtml(trialMessage)}</div>` : '') +
-          (points.length
-            ? `<ol>${points.map(({ lat, lng }) => `<li>${lat.toFixed(4)}, ${lng.toFixed(4)}</li>`).join('')}</ol>` +
-              `<label class="small">Passages, pour le tableur<input class="passages" readonly value="${passages}"></label>`
-            : '') +
+          (points.length ? `<ol>${points.map(({ lat, lng }) => `<li>${lat.toFixed(4)}, ${lng.toFixed(4)}</li>`).join('')}</ol>` : '') +
+          `<div class="small">Il entre dans le fichier de parcours avec « Enregistrer », en haut à droite.</div>` +
           `<div class="actions">` +
           (isEditing
             ? `<button type="button" class="done">Terminer</button>`
             : `<button type="button" class="edit">Modifier le parcours manuel</button>`) +
-          (points.length
-            ? `<button type="button" class="copy">Copier les passages</button>` +
-              `<button type="button" class="clear">Supprimer le parcours manuel</button>`
-            : '') +
+          (points.length ? `<button type="button" class="clear">Supprimer le parcours manuel</button>` : '') +
           `</div>`;
-        box.querySelector('.speed').addEventListener('input', event => {
-          const speed = Number(event.target.value);
-          if (speed > 0) setSpeed(speed);
-        });
       }
       box.querySelector('.edit')?.addEventListener('click', () => startEditing(route));
       box.querySelector('.done')?.addEventListener('click', stopEditing);
       box.querySelector('.clear')?.addEventListener('click', () => setPassages(route, []));
-      box.querySelector('.copy')?.addEventListener('click', event => {
-        // The clipboard exists only on https or localhost: elsewhere, the text is selected instead.
-        Promise.resolve().then(() => navigator.clipboard.writeText(passagesText(points)))
-          .then(() => { event.target.textContent = 'Copié'; })
-          .catch(() => {
-            box.querySelector('.passages').select();
-            event.target.textContent = 'Sélectionné : Ctrl+C pour copier';
-          });
-      });
     }
 
-    function render({ title, workbook, legs, route }) {
-      voyageRoute = route;
-      // A voyage.json written from a v1 workbook has no positions, and the map invents none.
-      if (legs.some(leg => !leg['Position embarquement'] || !leg['Position débarquement'])) {
-        throw new Error(`${VOYAGE_URL} ne contient pas les positions des ports : relance ./update.sh avec un tableur v2.`);
-      }
-      const bounds = L.latLngBounds([]);
-      // One marker per position: a port where one leg ends and the next starts is drawn once,
-      // with every name the workbook gives it.
-      const ports = new Map();
-      const visit = (at, name, line) => {
-        const port = ports.get(String(at)) ?? ports.set(String(at), { at, names: [], lines: [] }).get(String(at));
-        if (!port.names.includes(name)) port.names.push(name);
-        port.lines.push(line);
-      };
-
-      legs.forEach(leg => {
-        const ends = [leg['Position embarquement'], leg['Position débarquement']];
-        // A leg through a canal has no computed path: the coastline knows no canals.
-        const path = leg.route?.path ?? ends;
-        const line = L.polyline(path, {
-          color: ROUTE_COLOR,
-          weight: 3,
-          // The leg handles its own clicks: the map's handler is for clicks off the route.
-          bubblingMouseEvents: false,
-        }).addTo(map);
-        const route = { leg, path, ends, line };
-        legRoutes.set(leg['Étape'], route);
-        line.bindTooltip(
-          () => `<b>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</b><br>` +
-            `${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}<br>` +
-            legDistances(leg),
-          { sticky: true },
-        );
-        line.on('click', event => editing ? addTrialPoint(event.latlng) : openLeg(route));
-        const kept = storeGet(`trial|${leg['Étape']}`);
-        if (Array.isArray(kept) && kept.length && kept.every(point => Array.isArray(point) && point.every(Number.isFinite))) {
-          setPassages(route, kept.map(([lat, lon]) => L.latLng(lat, lon)));
-        }
-        bounds.extend(line.getBounds());
-        L.marker(line.getCenter(), {
-          icon: L.divIcon({ className: 'leg-number', html: escapeHtml(leg['Étape']), iconSize: [22, 22] }),
-          interactive: false,
-        }).addTo(map);
-        visit(ends[0], leg['Embarquement hypothétique'],
-          `Départ ${escapeHtml(formatDate(leg['Départ prévu']))} (étape ${escapeHtml(leg['Étape'])})`);
-        visit(ends[1], leg['Débarquement hypothétique'],
-          `Arrivée ${escapeHtml(formatDate(leg['Arrivée prévue']))} (étape ${escapeHtml(leg['Étape'])})`);
-      });
-
-      ports.forEach(({ at, names, lines }) => {
-        L.circleMarker(at, {
-          radius: 6,
-          color: ROUTE_COLOR,
-          weight: 2,
-          fillColor: ROUTE_COLOR,
-          fillOpacity: 1,
-          // A click on a port opens its dates, not the leg's panel.
-          bubblingMouseEvents: false,
-        })
-          .bindTooltip(escapeHtml(names[0]), { permanent: true, direction: 'right', className: 'port-label' })
-          .bindPopup([...names.map(name => `<b>${escapeHtml(name)}</b>`), ...lines].join('<br>'))
-          .addTo(map);
-      });
-
-      // The extra top padding keeps the northern end clear of the title panel.
-      map.fitBounds(bounds, { paddingTopLeft: [20, 80], paddingBottomRight: [20, 20] });
-      if (trials.size) loadCoastMask();
-      document.querySelector('.route-label').textContent =
-        `Parcours auto : le plus court chemin en mer, à ${route.coastDistanceNm} NM des côtes quand c'est possible ` +
-        `(côtes : ${route.coastline}). Un calcul, pas une route de navigation.`;
-      const first = formatDate(legs[0]['Départ prévu']);
-      const last = formatDate(legs.at(-1)['Arrivée prévue']);
-      // The workbook without a suffix is version 1, as tools/export_voyage.py counts them.
-      const version = Number(workbook.match(/_v(\d{2})\.xlsx$/)?.[1] ?? 1);
-      panel.innerHTML =
-        `<h1>${escapeHtml(title)}<span class="version" title="Données du tableur ${escapeHtml(workbook)}">v${version}</span></h1>` +
-        `<p>${legs.length} étapes, du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports placés aux positions du tableur, tracés calculés entre eux.</p>`;
-    }
-
-    // A click off the legs closes the open one, or places a passage while a manual route is drawn.
-    map.on('click', event => (editing ? addTrialPoint(event.latlng) : closeLegPanel()));
 
     // Opened from file://, the browser refuses fetch(): the page has to be served.
     async function start() {
       try {
-        const response = await fetch(VOYAGE_URL, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`${VOYAGE_URL} : HTTP ${response.status}`);
-        // Optional: without it, the panels simply have no wind statistics.
-        windStats = await fetch('wind-stats.json', { cache: 'no-store' })
-          .then(answer => (answer.ok ? answer.json() : null))
-          .catch(() => null);
-        render(await response.json());
+        const response = await fetch(SITE_FILE_URL, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`${SITE_FILE_URL} : HTTP ${response.status}`);
+        siteBytes = await response.arrayBuffer();
+        siteFile = await readRoutesFile(siteBytes);
       } catch (error) {
-        panel.classList.add('error');
-        panel.innerHTML =
-          `<h1>Impossible d'afficher le parcours</h1><p>${escapeHtml(error.message)}</p>` +
+        side.innerHTML =
+          `<h2>Impossible d'afficher le parcours</h2><p>${escapeHtml(error.message)}</p>` +
           `<p>Lance <code>./update.sh</code>, puis <code>python3 -m http.server</code> à la racine du projet, ` +
           `et ouvre http://localhost:8000/app/.</p>`;
+        return;
       }
+      const kept = await storeGet(KEPT_FILE);
+      const legacy = await legacyPassages;
+      if (kept) {
+        try {
+          useFile(await readRoutesFile(kept.bytes), kept.bytes, kept);
+          return;
+        } catch (error) {
+          showMessage(`Le fichier gardé dans ce navigateur ne se lit plus (${error.message}) : retour au fichier du site.`, 'error');
+        }
+      }
+      if (Object.keys(legacy).length) {
+        const manual = { ...manualOf(siteFile) };
+        for (const [key, passages] of Object.entries(legacy)) {
+          const route = siteFile.routes.find(one => one.leg['Étape'] === key && one.name === ROUTE_NAMES.auto);
+          if (route) manual[key] = { mode: route.mode, passages };
+        }
+        useFile(siteFile, siteBytes, { origin: 'site', manual, changed: true });
+        showMessage(`Les parcours manuels que la carte gardait dans ce navigateur sont repris (étapes ${Object.keys(legacy).join(', ')}) : ` +
+          `« Enregistrer » les met dans le fichier de parcours.`);
+        return;
+      }
+      useFile(siteFile, siteBytes, { origin: 'site' });
     }
 
     start();
