@@ -107,6 +107,8 @@
     .progress.error { background: #fbe3e0; color: #8a1f14; }
     .wind-manual, .trial button { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font-size: 12px; cursor: pointer; }
 
+    .leg-links .gpx { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+    .leg-links button { padding: 3px 9px; border: 1px solid var(--route); border-radius: 3px; background: #fff; color: var(--route); font-size: 12px; cursor: pointer; }
     .trial { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--trial); background: #faf6fc; }
     .trial h3 { margin-top: 0; color: var(--trial); }
     .trial .figures { margin: 6px 0; line-height: 1.5; }
@@ -283,6 +285,15 @@
       box.querySelector('button').addEventListener('click', () => { box.hidden = true; });
     }
 
+    function download(name, blob) {
+      const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      // Revoked at once, the address would be gone before the browser starts the download.
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+
     const manualOf = parsed => Object.fromEntries(parsed.routes.filter(route => route.name === ROUTE_NAMES.manual)
       .map(route => [route.leg['Étape'], { mode: route.mode, passages: route.passages }]));
 
@@ -410,15 +421,7 @@
       stopEditing();
       try {
         const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg });
-        const link = Object.assign(document.createElement('a'), {
-          href: URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })),
-          download: name,
-        });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        // Revoked at once, the address would be gone before the browser starts the download.
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        download(name, new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
         useFile(await readRoutesFile(bytes.buffer), bytes.buffer, { origin: 'saved' });
         showMessage(`${name} téléchargé. Déposé dans le dossier NJORD_2027 du Drive, il est repris par le prochain ./update.sh, ` +
           `qui calcule ce qui manque (le vent d'un parcours manuel pas encore calculé, par exemple).`);
@@ -686,8 +689,8 @@
         `<div class="small leg-distances">${legDistances(route)}</div>` +
         (route.auto.missing ? `<div class="small warning">Parcours auto absent du fichier : tracé en ligne droite, ./update.sh le calcule.</div>` : '') +
         `<div class="trial"></div>` +
+        `<h3>Vers d'autres outils</h3><div class="small leg-links"></div>` +
         `<div class="wind-block"></div>` +
-        `<h3>Liens</h3><div class="small leg-links"></div>` +
         `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
       showTrialPanel();
       renderWindBlock(route);
@@ -699,9 +702,77 @@
       const box = side.querySelector('.leg-links');
       if (!box || shownRoute !== route) return;
       const trial = trials.get(legKey(route));
+      const gpxName = `NJORD_2027_etape${legKey(route)}.gpx`;
+      const gpxFile = () => new File([legGpx(route)], gpxName, { type: 'application/gpx+xml' });
+      // A tablet or a phone hands the file to an app through its share sheet, where the browser allows a .gpx.
+      const shareable = navigator.canShare?.({ files: [gpxFile()] });
       box.innerHTML = `<a href="${windyRouteLink(route.path)}" target="_blank" rel="noopener">Parcours auto sur Windy ↗</a>` +
         (trial ? ` · <a href="${windyRouteLink(trial.path)}" target="_blank" rel="noopener" class="manual-text">Parcours manuel sur Windy ↗</a>` : '') +
-        ` (la vitesse du bateau et les milles se règlent une fois dans Windy)`;
+        ` (la vitesse du bateau et les milles se règlent une fois dans Windy)` +
+        `<div class="gpx"><button type="button" class="gpx-download">GPX de l'étape</button>` +
+        (shareable ? `<button type="button" class="gpx-share">Envoyer vers une appli…</button>` : '') +
+        `<button type="button" class="kml-download">KML (Google Earth)</button>` +
+        `<span>${trial ? 'parcours auto et manuel' : 'parcours auto'} : le GPX pour Navionics ou un traceur, le KML pour ` +
+        `Google Earth (Projet › Importer) ; à vérifier sur la carte marine</span></div>`;
+      box.querySelector('.gpx-download').addEventListener('click', () => download(gpxName, gpxFile()));
+      box.querySelector('.kml-download').addEventListener('click', () =>
+        download(gpxName.replace(/\.gpx$/, '.kml'), new Blob([legKml(route)], { type: 'application/vnd.google-earth.kml+xml' })));
+      box.querySelector('.gpx-share')?.addEventListener('click', () => {
+        navigator.share({ files: [gpxFile()], title: gpxName })
+          .catch(error => error.name !== 'AbortError' && showMessage(`Envoi refusé par le navigateur : « GPX de l'étape » le télécharge.`, 'error'));
+      });
+    }
+
+    const EXPORT_NOTE = 'Tracé calculé pour préparer le voyage, pas une route de navigation : à vérifier sur la carte marine.';
+
+    // What a leg's exports carry: its two ports, and each of its routes with its length.
+    function legExport(route) {
+      const { leg } = route;
+      const key = legKey(route);
+      const trial = trials.get(key);
+      return {
+        key,
+        ports: [
+          [leg['Position embarquement'], `${key} départ · ${leg['Embarquement hypothétique'] ?? ''}`],
+          [leg['Position débarquement'], `${key} arrivée · ${leg['Débarquement hypothétique'] ?? ''}`],
+        ],
+        routes: [{ name: ROUTE_NAMES.auto, letter: 'A', path: route.path, nm: route.auto.nm },
+          ...(trial ? [{ name: ROUTE_NAMES.manual, letter: 'M', path: trial.path, nm: pathNm(trial.path) }] : [])]
+          .map(one => ({ ...one, title: `Étape ${key} · parcours ${one.name} (${Math.round(one.nm)} NM)` })),
+      };
+    }
+
+    // For a navigation app or a chart plotter: each route twice, as a route and as a track, since
+    // some apps import only one of the two.
+    function legGpx(route) {
+      const { key, ports, routes } = legExport(route);
+      const point = (tag, [lat, lon], name) =>
+        `<${tag} lat="${lat.toFixed(5)}" lon="${lon.toFixed(5)}">${name ? `<name>${escapeXml(name)}</name>` : ''}</${tag}>`;
+      const note = `<desc>${EXPORT_NOTE}</desc>`;
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="NJORD parcours" xmlns="http://www.topografix.com/GPX/1/1">\n` +
+        ports.map(([at, name]) => `${point('wpt', at, name)}\n`).join('') +
+        routes.map(({ letter, path, title }) => {
+          const name = `<name>${escapeXml(title)}</name>`;
+          return `<rte>${name}${note}${path.map((at, i) => point('rtept', at, `${key}${letter}${String(i + 1).padStart(2, '0')}`)).join('')}</rte>\n` +
+            `<trk>${name}${note}<trkseg>${path.map(at => point('trkpt', at)).join('')}</trkseg></trk>\n`;
+        }).join('') +
+        `</gpx>\n`;
+    }
+
+    // For Google Earth, which reads KML but not GPX: the routes in the map's colours (KML writes a
+    // colour as alpha, blue, green, red).
+    function legKml(route) {
+      const { key, ports, routes } = legExport(route);
+      const kmlColour = css => `ff${css.slice(5, 7)}${css.slice(3, 5)}${css.slice(1, 3)}`;
+      const coordinates = path => path.map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)},0`).join(' ');
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n` +
+        `<name>${escapeXml(`Étape ${key} · ${route.leg['Zone / itinéraire'] ?? ''}`)}</name><description>${EXPORT_NOTE}</description>\n` +
+        `<Style id="auto"><LineStyle><color>${kmlColour(ROUTE_COLOR)}</color><width>4</width></LineStyle></Style>\n` +
+        `<Style id="manuel"><LineStyle><color>${kmlColour(TRIAL_COLOR)}</color><width>4</width></LineStyle></Style>\n` +
+        ports.map(([at, name]) => `<Placemark><name>${escapeXml(name)}</name><Point><coordinates>${coordinates([at])}</coordinates></Point></Placemark>\n`).join('') +
+        routes.map(({ name, path, title }) => `<Placemark><name>${escapeXml(title)}</name><styleUrl>#${name}</styleUrl>` +
+          `<LineString><tessellate>1</tessellate><coordinates>${coordinates(path)}</coordinates></LineString></Placemark>\n`).join('') +
+        `</Document></kml>\n`;
     }
 
     const WIND_ROWS = [
