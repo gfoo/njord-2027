@@ -9,8 +9,14 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="weather.js"></script>
+  <script src="sea-route.js"></script>
+  <script src="route-wind.js"></script>
   <style>
-    :root { --route: #1d4e89; }
+    :root {
+      /* The three points of sail: the reference palette's first slots, in its validated order. */
+      --wind-close: #2a78d6; --wind-reach: #eb6834; --wind-run: #1baf7a;
+    }
+    :root { --route: #1d4e89; --trial: #7d3c98; --trial-land: #c0392b; }
     html, body, #map { height: 100%; margin: 0; }
     body { font-family: system-ui, sans-serif; }
     .box {
@@ -27,6 +33,8 @@
     .legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .legend svg { flex: none; width: 28px; height: 12px; }
     .legend .route { stroke: var(--route); stroke-width: 3; }
+    .legend .manual { stroke: var(--trial); stroke-width: 3; }
+    .manual-text { color: var(--trial); }
     .legend .port { fill: var(--route); stroke: var(--route); stroke-width: 2; }
     .legend .leg-number { margin: 0 3px; }
     .legend p { font-size: 12px; }
@@ -43,14 +51,7 @@
     .weather table { width: 100%; border-collapse: collapse; }
     .weather td { padding: 3px 4px 3px 0; vertical-align: middle; }
     .weather td:first-child { color: #555; white-space: nowrap; }
-    .weather .arrow { width: 16px; height: 16px; fill: var(--route); vertical-align: -3px; }
-    .weather .gusts, .weather .small, .weather .credit { color: #666; }
-    .weather .small, .weather .credit { font-size: 11px; }
-    .weather .credit { margin-top: 12px; }
-    .weather .rose { display: block; width: 100%; max-width: 240px; margin: 4px auto; }
-    .weather .ring { fill: none; stroke: #ccc; stroke-width: 0.8; }
-    .weather .ring-label { fill: #888; font-size: 8px; }
-    .weather .cardinal { fill: #333; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .weather .small { color: #666; font-size: 11px; }
     .scale { margin: 6px 0 4px; font-size: 10px; }
     .scale-bar { display: flex; height: 15px; overflow: hidden; border-radius: 3px; }
     .scale-bar span { display: flex; align-items: center; justify-content: center; font-weight: 600; }
@@ -58,40 +59,60 @@
     .scale-ticks span { position: absolute; top: 1px; transform: translateX(-50%); }
     .scale-ticks span:first-child { transform: none; }
     .scale-ticks .unit { right: 0; transform: none; }
-    .windbox { bottom: 24px; left: 10px; width: min(270px, calc(100% - 40px)); font-size: 12px; }
-    .windbox label { display: block; margin: 4px 0; }
-    .windbox select { max-width: 100%; font: inherit; }
-    .windbox input[type=range] { width: 100%; accent-color: var(--route); }
-    .windbox .small { color: #666; font-size: 11px; }
-    .windbox button { margin: 4px 0; font: inherit; font-size: 11px; cursor: pointer; }
-    .wind-icon svg { width: 48px; height: 48px; overflow: visible; }
-    .weather .rose-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; }
-    .weather .rose-controls input { width: 110px; vertical-align: middle; accent-color: var(--route); }
-    .weather .rose-view { display: inline-flex; }
-    .weather .rose-view button { padding: 3px 9px; border: 1px solid var(--route); background: #fff; color: var(--route); font: inherit; cursor: pointer; }
-    .weather .rose-view button:first-child { border-radius: 4px 0 0 4px; }
-    .weather .rose-view button:last-child { border-left: none; border-radius: 0 4px 4px 0; }
-    .weather .rose-view button[aria-pressed="true"] { background: var(--route); color: #fff; }
-    .weather .season-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0 0; }
-    .weather .season-legend button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 10px; background: #fff; font: inherit; font-size: 11px; color: #333; cursor: pointer; }
-    .weather .season-legend button[aria-pressed="false"] { color: #999; text-decoration: line-through; opacity: 0.6; }
-    .weather .swatch { width: 22px; height: 8px; flex: none; vertical-align: middle; margin-right: 4px; }
-    .weather .season-legend .swatch { margin-right: 0; }
-    .weather .vertex { fill: transparent; }
-    .weather .season-table { margin: 4px 0; font-size: 12px; }
-    .weather .season-table th { padding: 2px 4px 2px 0; font-size: 11px; font-weight: 600; color: #555; text-align: left; }
-    .weather .season-table td { padding: 2px 4px 2px 0; white-space: nowrap; }
-    .weather .season-table td:first-child { color: #333; }
-    .weather .season-table td .small { margin-left: 26px; }
-    .weather .season-table tr.current td { font-weight: 700; }
-    .weather .rose-status { min-height: 15px; font-size: 11px; color: #666; }
     .progress { position: relative; margin: 4px 0; overflow: hidden; border-radius: 10px; background: #e3eaf2; color: #1d2b3a; font-size: 11px; font-weight: 600; line-height: 1.3; }
     .progress .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #9dbbe0; transition: width 0.2s; }
     .progress .text { position: relative; display: block; padding: 3px 10px; text-align: center; }
     .progress.error { background: #fbe3e0; color: #8a1f14; }
-    .map-progress { position: absolute; top: 10px; left: 50%; z-index: 1100; width: min(560px, calc(100% - 140px)); margin: 0; transform: translateX(-50%); border-radius: 12px; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3); font-size: 12px; }
-    .map-progress .text { padding: 5px 12px; }
     .progress[hidden] { display: none; }
+    .leaflet-container.trial-mode { cursor: crosshair; }
+    .hull { fill: #fff; stroke: var(--route); stroke-width: 2; }
+    .weather .wind-how { margin-top: 6px; padding: 3px 9px; border: 1px solid var(--route); border-radius: 3px; background: #fff; color: var(--route); font: inherit; font-size: 12px; cursor: pointer; }
+    .wind-window { top: 84px; left: 10px; z-index: 1001; background: #fff; width: min(720px, calc(100% - 20px)); max-height: calc(100% - 104px); overflow: auto; font-size: 13px; }
+    .wind-window[hidden] { display: none; }
+    .wind-window h2 { margin: 0 24px 6px 0; font-size: 15px; }
+    .wind-window .boat-rose .hit { fill: transparent; }
+    .wind-window .boat-rose .hit:hover { fill: rgba(29, 78, 137, 0.1); stroke: var(--route); stroke-width: 1; }
+    .rose-tip, .why-tip { position: absolute; z-index: 2; max-width: 230px; padding: 6px 9px; border-radius: 4px; background: #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); font-size: 12px; line-height: 1.45; pointer-events: none; }
+    .rose-tip[hidden], .why-tip[hidden] { display: none; }
+    .why-tip { max-width: 300px; font-weight: normal; text-align: left; }
+    .rose-tip .bands { color: #444; }
+    .rose-tip .swatch { display: inline-block; width: 10px; height: 10px; margin: 0 3px 0 6px; vertical-align: -1px; }
+    .rose-tip .swatch:first-child { margin-left: 0; }
+    .rose-tip .other { color: #666; }
+    .wind-window .roses { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .wind-window .roses h3 { margin: 4px 0 0; font-size: 13px; text-align: center; }
+    .wind-window .period { margin: 6px 0 10px; padding: 6px 10px; background: #eef3f9; border-radius: 4px; text-align: center; font-size: 14px; font-weight: 600; }
+    .wind-window .period span { display: block; font-size: 11px; font-weight: normal; color: #666; }
+    .wind-window .wind-table { width: 100%; margin: 10px 0 4px; border-collapse: collapse; font-size: 12px; }
+    .wind-window .wind-table th, .wind-window .wind-table td { padding: 3px 6px; text-align: right; }
+    .wind-window .wind-table th:first-child, .wind-window .wind-table td:first-child { text-align: left; }
+    .wind-window .wind-table tr + tr td { border-top: 1px solid #eee; }
+    .wind-window .wind-table .group th { padding-top: 10px; text-align: left; }
+    .wind-window .pace { margin-top: 10px; font-size: 12px; }
+    .wind-window .pace input { width: 52px; }
+    .wind-manual { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; font-size: 12px; cursor: pointer; }
+    .wind-window .why { margin-left: 4px; width: 16px; height: 16px; padding: 0; border: 1px solid var(--route); border-radius: 50%; background: #fff; color: var(--route); font-size: 10px; line-height: 14px; cursor: pointer; }
+    .wind-window .small, .wind-window .credit { color: #666; font-size: 11px; }
+    .wind-window .rose { display: block; width: 100%; max-width: 340px; margin: 4px auto; }
+    .wind-window .ring { fill: none; stroke: #ccc; stroke-width: 0.8; }
+    .wind-window .ring-label { fill: #666; font-size: 8px; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    .wind-window .cardinal { fill: #333; font-size: 11px; font-weight: 700; text-anchor: middle; }
+    .wind-window .allure { fill: #666; font-size: 10px; font-style: italic; text-anchor: middle; }
+    .wind-window .allure-limit { stroke: #555; stroke-width: 1; stroke-dasharray: 3 3; }
+    .legend [hidden] { display: none; }
+    .legend .trials-export { flex-wrap: wrap; gap: 6px; margin: 8px 0 0; font-size: 12px; }
+    .legend .trials-export button { padding: 2px 8px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; cursor: pointer; }
+    .trial-point { box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: var(--trial); box-shadow: 0 0 0 1px var(--trial); cursor: grab; }
+    .weather .trial { margin-top: 8px; }
+    .weather .trial button { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font: inherit; font-size: 12px; cursor: pointer; }
+    .weather .trial h3 { color: var(--trial); }
+    .weather .trial .figures { margin: 6px 0; line-height: 1.5; }
+    .weather .trial .figures b { color: var(--trial); }
+    .weather .trial .warning { color: var(--trial-land); }
+    .weather .trial .speed { width: 52px; }
+    .weather .trial ol { margin: 4px 0; padding-left: 22px; font-variant-numeric: tabular-nums; }
+    .weather .trial .passages { width: 100%; box-sizing: border-box; margin: 2px 0 6px; font: 11px ui-monospace, monospace; }
+    .weather .trial .actions { display: flex; flex-wrap: wrap; gap: 6px; }
     .close { position: absolute; top: 4px; right: 8px; border: none; background: none; font-size: 20px; cursor: pointer; color: #555; }
     .leg-number {
       display: flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box;
@@ -102,34 +123,22 @@
 </head>
 <body>
   <div id="map"></div>
-  <div class="progress map-progress" hidden><div class="fill"></div><span class="text"></span></div>
   <div id="panel" class="box panel"><h1>Chargement du planning…</h1></div>
-  <div id="weather" class="box weather" hidden></div>
+  <div class="box weather leg-panel" hidden></div>
+  <div class="box wind-window" role="dialog" aria-label="Le vent vu du bateau" hidden></div>
   <div class="box legend">
-    <div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg>Étape : ligne droite entre ses deux ports, pas une route</div>
+    <div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg><span class="route-label">Étape</span></div>
+    <div class="trial-legend" hidden><svg viewBox="0 0 28 12"><line class="manual" x1="0" y1="6" x2="28" y2="6"/></svg>Parcours manuel, par des passages posés à la main (gardé dans ce navigateur seulement)</div>
     <div><span class="leg-number">01</span>Numéro d'étape</div>
     <div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port d'escale</div>
-    <p>Survoler un trait : dates et distance de l'étape. Cliquer sur un trait : l'étape, avec le vent et la rose des vents à cet endroit. Cliquer ailleurs : le vent et la rose des vents de ce point. Cliquer sur un port : ses dates.</p>
-  </div>
-  <div class="box windbox">
-    <label><input type="checkbox" class="wind-toggle"> <b>Vent sur la carte</b></label>
-    <div class="wind-controls" hidden>
-      <label>Modèle <select class="wind-model"></select></label>
-      <label>Symbole <select class="wind-style"></select></label>
-      <label>Densité <output class="wind-density-label">≈ 150 points</output>
-        <input type="range" class="wind-density" min="50" max="400" step="25" value="150"></label>
-      <label>Heure <input type="range" class="wind-hour" min="0" max="72" value="0"></label>
-      <div class="wind-hour-label"></div>
-      <button type="button" class="wind-reload">Actualiser la prévision</button>
-      <div class="wind-bands"></div>
-      <div class="wind-style-note small"></div>
-      <div class="small">Prévision du modèle, rafraîchie toutes les quelques heures. Chaque point compte comme une requête : le quota gratuit est de 600 par minute. Données : Open-Meteo.com (CC BY 4.0).</div>
-    </div>
+    <p>Survoler un trait : dates et distance de l'étape. Cliquer sur un trait : l'étape, ses parcours et le vent qu'on y trouve d'après les statistiques. Cliquer sur un port : ses dates.</p>
+    <div class="trials-export" hidden></div>
   </div>
   <script>
     // Written from the workbook by ./update.sh: the site never holds the workbook itself.
     const VOYAGE_URL = 'voyage.json';
     const ROUTE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--route').trim();
+    const TRIAL_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--trial').trim();
 
     // A canvas with a hit tolerance, so that the thin legs are easy to hover and click.
     const map = L.map('map', { renderer: L.canvas({ tolerance: 8 }) }).setView([48, 2], 4);
@@ -160,18 +169,7 @@
     L.control.layers(BASE_MAPS, null, { position: 'bottomright' }).addTo(map);
 
     const panel = document.getElementById('panel');
-    const weather = document.getElementById('weather');
-    // Only the latest rose or wind grid asked for is drawn, however the answers arrive.
-    let roseRequest = 0;
-    let windRequest = 0;
-    // The archive cell the weather panel shows: archives still waiting for the quota are dropped once it changes.
-    let roseKey = null;
-    const ROSE_VIEWS = { year: "Toute l'année", seasons: 'Saisons' };
-    // The viewer's last choices, kept from one click to the next.
-    let roseView = 'year';
-    let roseYears = ROSE_DEFAULT_YEARS;
-    const yearsText = years => (years === 1 ? 'un an' : `${years} ans`);
-    const clickedPoint = L.circleMarker([0, 0], { radius: 6, color: '#c0392b', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false });
+    const legPanel = document.querySelector('.leg-panel');
     // A highlighter band under the selected leg, kept below every line so that the leg stays drawn
     // as it is, dashes included. Its pale yellow is none of the wind's force colours.
     const legHighlight = L.polyline([], { color: '#ffd84d', weight: 14, opacity: 0.75, interactive: false });
@@ -194,147 +192,758 @@
     }
 
 
+    // Statistics of the wind along each leg's computed route (tools/wind_stats.py), or null.
+    let windStats = null;
+
+    function dayMonth(isoDate, shiftDays) {
+      const date = utcDate(isoDate);
+      date.setUTCDate(date.getUTCDate() + shiftDays);
+      return date.toLocaleDateString('fr-CH', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    }
+
+    // The wind along a leg's routes: the auto route's from wind-stats.json, a manual route's computed
+    // in the browser on demand (route-wind.js), once per path for the visit.
+    const manualWinds = new Map();
+
+    function autoWind(leg) {
+      const stats = windStats?.legs[leg['Étape']];
+      const current = stats && stats.dates[0] === leg['Départ prévu'] && stats.dates[1] === leg['Arrivée prévue'] &&
+        stats.routeNm === leg.route?.nm;
+      return current ? stats : null;
+    }
+
+    const manualKey = route => `${legKey(route)}|${JSON.stringify(trials.get(legKey(route))?.path)}`;
+
+    function manualWind(route) {
+      const key = manualKey(route);
+      if (!manualWinds.has(key) || manualWinds.get(key).error) {
+        const entry = { done: 0, total: 0, pause: 0, stats: null, error: null };
+        manualWinds.set(key, entry);
+        routeWindStats(trials.get(legKey(route)).path, route.leg, windStats, {
+          onProgress: (done, total, pause) => {
+            Object.assign(entry, { done, total, pause: pause ?? 0 });
+            refreshWind(route);
+          },
+        })
+          .then(stats => { entry.stats = stats; }, error => { entry.error = error; })
+          .finally(() => refreshWind(route));
+      }
+      return manualWinds.get(key);
+    }
+
+    // A rare gale rounds to 0 %, which would read as never.
+    const windPercent = share => (share > 0 && share < 0.005 ? 'moins de 1 %' : `${Math.round(share * 100)} %`);
+
+    // In the leg's panel, only the way to the window of the roses: the figures are there.
+    function windSectionHtml(route) {
+      const { leg } = route;
+      if (!leg.route || !windStats?.legs[leg['Étape']]) return '';
+      // Statistics of other dates or of another route would mislead: they are flagged, not shown.
+      if (!autoWind(leg)) {
+        return `<h3>Vent sur le parcours</h3><div class="small">Statistiques à recalculer : les dates ou le parcours auto ` +
+          `de l'étape ont changé depuis (tools/wind_stats.py).</div>`;
+      }
+      const { years: [first, last], marginDays } = windStats;
+      return `<h3>Vent sur le parcours</h3>` +
+        `<div class="small">D'où vient le vent par rapport au bateau, sur le parcours auto et le parcours manuel s'il existe : ` +
+        `statistiques ${first}–${last} du ${dayMonth(leg['Départ prévu'], -marginDays)} au ${dayMonth(leg['Arrivée prévue'], marginDays)}.</div>` +
+        `<button type="button" class="wind-how">Roses des vents du parcours</button>`;
+    }
+
+    const WIND_ROWS = [
+      ['close', 'Vent de face (près)'],
+      ['reach', 'De côté (travers)'],
+      ['run', "De l'arrière (portant)"],
+      ['light', 'Trop peu de vent'],
+      ['strong', 'Force 6 et plus'],
+      ['gale', 'Force 7 et plus'],
+    ];
+
+    // What a « ? » of the window of the roses explains: only what the figures beside it need.
+    const EXPLANATIONS = {
+      roses: () => `Chaque heure, la direction du vent est prise par rapport au cap du parcours à ce point : un vent du ` +
+        `nord vient de l'avant quand le bateau monte au nord. Un pétale n'est donc pas un point : il réunit toutes les ` +
+        `heures, de tous les points, où le vent venait de cette direction. Chaque point pèse pour les milles qu'il représente.`,
+      period: () => `Le vent heure par heure tous les ${windStats.spacingNm} NM sur le parcours (les ronds blancs sur la ` +
+        `carte), d'après les archives d'Open-Meteo. Des statistiques sur des années passées, pas une prévision : elles ` +
+        `disent ce qui est probable à ces dates, pas le temps qu'il fera.`,
+      tacking: () => {
+        const share = angle => Math.round(100 * Math.cos(pointingDeg * Math.PI / 180) / Math.cos(angle * Math.PI / 180));
+        const examples = [0, 20, 40].filter(angle => angle < pointingDeg).map((angle, i) =>
+          `${share(angle)} %${i ? ` à ${angle}°${i === 1 ? " de l'avant" : ''}` : ' de sa vitesse vent droit devant'}`).join(', ');
+        return `Le bateau ne remonte pas plus près que ${pointingDeg}° du vent. Quand le vent vient de plus près de ` +
+          `l'avant, il zigzague et avance moins vite vers son but : ${examples}. Ces heures-là comptent à vitesse ` +
+          `réduite, les autres à la vitesse moyenne. La distance est le chemin parcouru sur l'eau : à la même vitesse, ` +
+          `elle s'allonge comme la durée. Sous ${windStats.thresholds.lightKn} nd de vent, pas d'allure : ces heures ` +
+          `comptent comme route directe.`;
+      },
+      shares: () => {
+        const t = windStats.thresholds;
+        return `Vent de face : à moins de ${t.closeHauledDeg}° de l'avant ; de côté : jusqu'à ${t.runningDeg}° ; de ` +
+          `l'arrière : au-delà. Sous ${t.lightKn} nd, trop peu de vent pour une allure : ces heures font la ligne « Trop peu de vent ». ` +
+          `Force 6 : ${t.strongKn} nd et plus ; force 7 : ${t.galeKn} nd et plus.`;
+      },
+      years: () => `La part de vent de face de l'année la plus facile et de la plus dure, de ${windStats.years[0]} ` +
+        `à ${windStats.years[1]}.`,
+    };
+
+    const why = key => ` <button type="button" class="why" data-why="${key}" aria-label="Explication">?</button>`;
+
+    function manualProgressHtml(entry) {
+      if (entry.error) {
+        return progressBar(0, weatherErrorMessage(entry.error, 'Vent du parcours manuel indisponible.'), true) +
+          `<button type="button" class="wind-manual">Réessayer</button>`;
+      }
+      return progressBar(entry.total ? entry.done / entry.total : 0, `Vent du parcours manuel : ${entry.done} / ${entry.total} requêtes` +
+        (entry.pause ? ` · pause imposée par le quota Open-Meteo, reprise dans ${entry.pause} s` : ''));
+    }
+
+    function closeHauledRange(stats) {
+      const byYear = Object.entries(stats.byYear).map(([year, shares]) => ({ year, close: shares.close }));
+      const easiest = byYear.reduce((a, b) => (b.close < a.close ? b : a));
+      const hardest = byYear.reduce((a, b) => (b.close > a.close ? b : a));
+      return `${windPercent(easiest.close)} (${easiest.year}) à ${windPercent(hardest.close)} (${hardest.year})`;
+    }
+
+    // The time over a route grows by this factor when the boat tacks whenever the wind blows from
+    // closer to the bow than it points: it then makes good cos(pointing) / cos(angle) of its speed.
+    // Hours of light air count as sailed straight.
+    function tackingFactor(offBow, pointing) {
+      const radians = degrees => degrees * Math.PI / 180;
+      return offBow.reduce((factor, share, degree) => {
+        const off = degree + 0.5;
+        return off < pointing ? factor + share * (Math.cos(radians(off)) / Math.cos(radians(pointing)) - 1) : factor;
+      }, 1);
+    }
+
+    // Each route's length and time at the chosen speed, then its share of the time by point of sail;
+    // the manual route's column waits for its wind.
+    function windTableHtml(route) {
+      const auto = { nm: route.leg.route.nm, stats: autoWind(route.leg) };
+      const trial = trials.get(legKey(route));
+      const manual = trial ? { nm: pathNm(trial.path), stats: manualWinds.get(manualKey(route))?.stats } : null;
+      const routes = manual ? [auto, manual] : [auto];
+      const cells = (value, needsWind = true) => routes.map((one, i) =>
+        `<td${i ? ' class="manual-text"' : ''}>${one.stats || !needsWind ? value(one) : '—'}</td>`).join('');
+      const sailed = one => one.nm * tackingFactor(one.stats.offBow, pointingDeg);
+      const direct = one => one.nm / trialSpeed;
+      const tacking = one => sailed(one) / trialSpeed;
+      return `<table class="wind-table"><tr><th>En route directe</th><th>Parcours auto</th>` +
+        (manual ? `<th class="manual-text">Parcours manuel</th>` : '') + `</tr>` +
+        `<tr><td>Distance</td>${cells(one => `${Math.round(one.nm)} NM`, false)}</tr>` +
+        `<tr><td>Durée à ${trialSpeed} nd</td>${cells(one => formatHours(direct(one)), false)}</tr>` +
+        `<tr class="group"><th colspan="${routes.length + 1}">En tirant des bords${why('tacking')}</th></tr>` +
+        `<tr><td>Distance</td>${cells(one =>
+          `${Math.round(sailed(one))} NM (+${Math.round(sailed(one) - one.nm)})`)}</tr>` +
+        `<tr><td>Durée à ${trialSpeed} nd</td>${cells(one =>
+          `${formatHours(tacking(one))} (+${formatHours(tacking(one) - direct(one))})`)}</tr>` +
+        `<tr class="group"><th colspan="${routes.length + 1}">Part du temps${why('shares')}</th></tr>` +
+        WIND_ROWS.map(([key, label]) => `<tr><td>${label}</td>${cells(one => windPercent(one.stats.shares[key]))}</tr>`).join('') +
+        `<tr><td>Vent de face selon les années${why('years')}</td>${cells(one => closeHauledRange(one.stats))}</tr>` +
+        `</table>`;
+    }
+
+    // The window of the roses: the auto route's and, when there is one, the manual route's, each the
+    // sum of its points' roses turned to the boat's course there.
+    const windWindow = document.querySelector('.wind-window');
+    const statsPoints = L.layerGroup();
+    let windowRoute = null;
+
+    function closeWindWindow() {
+      windWindow.hidden = true;
+      windowRoute = null;
+      statsPoints.remove();
+    }
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !windWindow.hidden) closeWindWindow();
+    });
+
+    function showWhy(button) {
+      const tip = windWindow.querySelector('.why-tip');
+      tip.innerHTML = EXPLANATIONS[button.dataset.why]();
+      tip.hidden = false;
+      const box = windWindow.getBoundingClientRect();
+      const at = button.getBoundingClientRect();
+      tip.style.left = `${Math.max(4, Math.min(at.left - box.left - 8, windWindow.clientWidth - tip.offsetWidth - 4))}px`;
+      tip.style.top = `${at.bottom - box.top + windWindow.scrollTop + 6}px`;
+    }
+
+    function hideWhy() {
+      windWindow.querySelector('.why-tip').hidden = true;
+    }
+
+    // Hover or focus shows an explanation; a tap, where there is no hover, shows it until the next one.
+    ['pointerover', 'focusin', 'click'].forEach(type => windWindow.addEventListener(type, event => {
+      const button = event.target.closest('.why');
+      if (button) showWhy(button);
+      else if (type === 'click') hideWhy();
+    }));
+    windWindow.addEventListener('pointerout', event => event.pointerType === 'mouse' && event.target.closest('.why') && hideWhy());
+    windWindow.addEventListener('focusout', event => event.target.closest('.why') && hideWhy());
+
+    function drawStatsPoints(route) {
+      statsPoints.clearLayers();
+      const manual = manualWinds.get(manualKey(route))?.stats;
+      [[autoWind(route.leg), ROUTE_COLOR], [trials.has(legKey(route)) ? manual : null, TRIAL_COLOR]].forEach(([stats, color]) =>
+        stats?.points.forEach(([lat, lon]) => L.circleMarker([lat, lon], {
+          radius: 5, color, weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false,
+        }).addTo(statsPoints)));
+      statsPoints.addTo(map);
+    }
+
+    // Both roses on one scale, the largest petal of either, so that a longer petal is a larger share.
+    function windowPeak(route) {
+      const manual = manualWinds.get(manualKey(route))?.stats;
+      return Math.max(...[autoWind(route.leg), trials.has(legKey(route)) ? manual : null]
+        .filter(Boolean).flatMap(stats => stats.aroundBoat.map(sector => sector.reduce((a, b) => a + b, 0))));
+    }
+
+    function manualColumnHtml(route, peak) {
+      const trial = trials.get(legKey(route));
+      const head = `<h3 class="manual-text">Parcours manuel · ${Math.round(pathNm(trial.path))} NM</h3>`;
+      const entry = manualWinds.get(manualKey(route));
+      if (!entry) return head + `<button type="button" class="wind-manual">Calculer son vent</button>`;
+      if (!entry.stats) return head + manualProgressHtml(entry);
+      return head + boatRoseSvg(entry.stats.aroundBoat, windStats.thresholds, peak, 'manual');
+    }
+
+    // Opened from its button, the window starts the manual route's wind; redrawn while passages
+    // move, it waits to be asked, so that a route still being drawn costs no request.
+    function openWindWindow(route, { compute = true } = {}) {
+      const { leg } = route;
+      const auto = autoWind(leg);
+      const { thresholds: t, years: [first, last], marginDays } = windStats;
+      const trial = trials.get(legKey(route));
+      windowRoute = route;
+      if (trial && coast && compute) manualWind(route);
+      const peak = windowPeak(route);
+      windWindow.hidden = false;
+      windWindow.innerHTML =
+        `<button class="close" aria-label="Fermer">×</button>` +
+        `<h2>Étape ${escapeHtml(leg['Étape'])} · le vent vu du bateau</h2>` +
+        `<p class="small">Chaque pétale est une direction d'où vient le vent par rapport au bateau, l'avant en haut ` +
+        `quel que soit le cap. Sa longueur : la part du temps ; ses couleurs : la force. ` +
+        `${trial ? 'Les deux roses ont la même échelle. ' : ''}Survoler un pétale pour le détail.${why('roses')}</p>` +
+        `<div class="roses">` +
+        `<div><h3>Parcours auto · ${leg.route.nm} NM</h3>${boatRoseSvg(auto.aroundBoat, t, peak, 'auto')}</div>` +
+        (trial ? `<div class="manual-column">${manualColumnHtml(route, peak)}</div>` : '') +
+        `</div>` +
+        `<p class="period">Le vent du ${dayMonth(leg['Départ prévu'], -marginDays)} au ${dayMonth(leg['Arrivée prévue'], marginDays)}, ` +
+        `chaque année de ${first} à ${last}${why('period')}<span>les dates de l'étape, ${marginDays} jours de marge de chaque côté</span></p>` +
+        speedScale() +
+        `<div class="pace">Vitesse moyenne <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd · ` +
+        `remonte au vent jusqu'à <input type="number" class="pointing" min="30" max="70" step="5" value="${pointingDeg}">° du vent</div>` +
+        `<div class="wind-figures">${windTableHtml(route)}</div>` +
+        `<p class="credit">Données : Open-Meteo.com (CC BY 4.0).</p>` +
+        `<div class="rose-tip" hidden></div><div class="why-tip" hidden></div>`;
+      windWindow.querySelector('.close').addEventListener('click', closeWindWindow);
+      windWindow.querySelector('.speed').addEventListener('input', event => {
+        if (Number(event.target.value) > 0) setSpeed(Number(event.target.value));
+      });
+      windWindow.querySelector('.pointing').addEventListener('input', event => {
+        const pointing = Number(event.target.value);
+        if (pointing >= 30 && pointing <= 70) {
+          pointingDeg = pointing;
+          windWindow.querySelector('.wind-figures').innerHTML = windTableHtml(route);
+        }
+      });
+      listenManualButton(route);
+      listenRoseTips(route);
+      drawStatsPoints(route);
+    }
+
+    function listenManualButton(route) {
+      windWindow.querySelector('.wind-manual')?.addEventListener('click', () => manualWind(route));
+    }
+
+    function refreshWind(route) {
+      if (windowRoute !== route || windWindow.hidden) return;
+      const column = windWindow.querySelector('.manual-column');
+      const entry = manualWinds.get(manualKey(route));
+      // A manual route created, deleted or just computed changes the columns or the common scale;
+      // only the progress of its requests is redrawn in place.
+      if (!column !== !trials.has(legKey(route)) || !entry || entry.stats) {
+        openWindWindow(route, { compute: false });
+        return;
+      }
+      column.innerHTML = manualColumnHtml(route);
+      listenManualButton(route);
+      drawStatsPoints(route);
+    }
+
+    const tipPercent = share => `${(share * 100).toLocaleString('fr-CH', { maximumFractionDigits: share < 0.1 ? 1 : 0 })} %`;
+
+    // Where a petal's wind comes from, seen from the boat, and the point of sail it means.
+    function petalName(sector, t) {
+      const angle = sector * 22.5;
+      const off = Math.min(angle, 360 - angle);
+      const from = off === 0 ? "de l'avant" : off === 180 ? "de l'arrière"
+        : `de ${off.toLocaleString('fr-CH')}° sur ${angle < 180 ? 'tribord' : 'bâbord'}`;
+      const allure = off < t.closeHauledDeg ? 'près' : off < t.runningDeg ? 'travers' : 'portant';
+      return `Vent ${from} · ${allure}`;
+    }
+
+    // The tooltip of a petal: its share of the time by force, and the other route's same petal.
+    function listenRoseTips(route) {
+      const tip = windWindow.querySelector('.rose-tip');
+      const stats = {
+        auto: autoWind(route.leg),
+        manual: trials.has(legKey(route)) ? manualWinds.get(manualKey(route))?.stats : null,
+      };
+      const names = { auto: 'parcours auto', manual: 'parcours manuel' };
+      windWindow.querySelectorAll('.boat-rose').forEach(svg => {
+        const own = svg.dataset.route;
+        const other = own === 'auto' ? 'manual' : 'auto';
+        svg.addEventListener('pointermove', event => {
+          const hit = event.target.closest('.hit');
+          if (!hit) {
+            tip.hidden = true;
+            return;
+          }
+          const sector = Number(hit.dataset.sector);
+          const bands = stats[own].aroundBoat[sector];
+          const total = bands.reduce((a, b) => a + b, 0);
+          tip.innerHTML = `<b>${petalName(sector, windStats.thresholds)}</b><br>` +
+            `<span class="${own === 'manual' ? 'manual-text' : ''}">${tipPercent(total)} du temps sur le ${names[own]}</span><br>` +
+            `<span class="bands">` + SPEED_BANDS.map((band, i) =>
+              `<span class="swatch" style="background:${band.color}"></span>${band.force} ${tipPercent(bands[i])}`).join(' ') + `</span>` +
+            (stats[other]
+              ? `<br><span class="other">Sur le ${names[other]} : ${tipPercent(stats[other].aroundBoat[sector].reduce((a, b) => a + b, 0))}</span>`
+              : '');
+          tip.hidden = false;
+          const box = windWindow.getBoundingClientRect();
+          const left = Math.min(event.clientX - box.left + 14, windWindow.clientWidth - tip.offsetWidth - 4);
+          tip.style.left = `${Math.max(4, left)}px`;
+          tip.style.top = `${event.clientY - box.top + windWindow.scrollTop + 14}px`;
+        });
+        svg.addEventListener('pointerleave', () => { tip.hidden = true; });
+      });
+    }
+
+    // The rose of all a route's points, turned so that the bow is up; the limits of the points of
+    // sail are drawn over it, and each petal's whole sector answers the pointer.
+    function boatRoseSvg(aroundBoat, t, peak, routeName) {
+      const { wedges } = roseWedges({ counts: aroundBoat, total: 1 }, peak);
+      const [center, radius] = [ROSE_CENTER, ROSE_RADIUS];
+      const rings = [0.25, 0.5, 0.75, 1].map(k => `<circle cx="${center}" cy="${center}" r="${radius * k}" class="ring"/>`).join('');
+      const ringLabels = [0.25, 0.5, 0.75, 1].map(k =>
+        `<text x="${center + 3}" y="${center - radius * k - 2}" class="ring-label">${Math.round(peak * k * 100)} %</text>`).join('');
+      const limits = [t.closeHauledDeg, t.runningDeg, 360 - t.runningDeg, 360 - t.closeHauledDeg]
+        .map(angle => {
+          const [x, y] = rosePoint(radius + 8, angle).split(',');
+          return `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}" class="allure-limit"/>`;
+        }).join('');
+      const label = (x, y, side, allure) =>
+        `<text x="${x}" y="${y}" class="cardinal">${side}</text><text x="${x}" y="${y + 13}" class="allure">${allure}</text>`;
+      const hits = aroundBoat.map((_, s) =>
+        `<path d="M${center},${center} L${rosePoint(radius, s * 22.5 - 11.25)} A${radius},${radius} 0 0 1 ${rosePoint(radius, s * 22.5 + 11.25)}Z" ` +
+        `class="hit" data-sector="${s}"/>`).join('');
+      return `<svg viewBox="-46 -30 332 300" class="rose boat-rose" data-route="${routeName}" role="img" aria-label="Rose des vents vue du bateau">` +
+        rings + wedges + limits +
+        `<path d="M120,110 C124,115 125,123 123,130 L117,130 C115,123 116,115 120,110Z" class="hull"/>` +
+        ringLabels +
+        label(center, center - radius - 30, 'avant', 'près') +
+        label(center, center + radius + 18, 'arrière', 'portant') +
+        label(center + radius + 26, center - 4, 'tribord', 'travers') +
+        label(center - radius - 26, center - 4, 'bâbord', 'travers') +
+        hits +
+        `</svg>`;
+    }
+
     function formatDistance(value) {
       const text = String(value ?? '');
       return text.includes('NM') ? text : `${text} NM`;
     }
 
+    // The workbook's distance stays first: the computed length is ours, and says so.
+    function legDistances(leg) {
+      const manual = trials.get(leg['Étape']);
+      return `Tableur : ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))} · ` +
+        (leg.route ? `parcours auto : ${leg.route.nm} NM` : 'parcours auto : ligne droite (canal)') +
+        (manual ? ` · <span class="manual-text">parcours manuel : ${Math.round(pathNm(manual.path))} NM</span>` : '');
+    }
+
+    // The leg's band under both its routes when it has a manual one.
+    const highlightPaths = route => (trials.has(legKey(route)) ? [route.path, trials.get(legKey(route)).path] : route.path);
+
+    function showLegLinks(route) {
+      const box = legPanel.querySelector('.leg-links');
+      if (!box || shownRoute !== route) return;
+      const manual = trials.get(legKey(route));
+      box.innerHTML = `<a href="${windyRouteLink(route.path)}" target="_blank" rel="noopener">Parcours auto sur Windy ↗</a>` +
+        (manual ? ` · <a href="${windyRouteLink(manual.path)}" target="_blank" rel="noopener" class="manual-text">Parcours manuel sur Windy ↗</a>` : '') +
+        ` (la vitesse du bateau et les milles se règlent une fois dans Windy)`;
+    }
+
     const formatPosition = ([lat, lon]) =>
       `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'} · ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'O'}`;
 
-    // A click on a leg (route) shows the leg with the spot; a click elsewhere, the spot alone.
-    function showWeather(route, clicked) {
-      const at = [clicked.lat, clicked.lng];
-      const leg = route?.leg;
-      const points = route
-        ? [['Départ', route.path[0]], ['Point cliqué', at], ['Arrivée', route.path[1]]]
-        : [['Point cliqué', at]];
-      const highlight = leg ? seasonOf(utcDate(leg['Départ prévu']).getUTCMonth()) : null;
-      const key = roseCell(at).join();
-      roseKey = key;
-      clickedPoint.setLatLng(clicked).addTo(map);
-      if (route) legHighlight.setLatLngs(route.path).addTo(map).bringToBack();
-      else legHighlight.remove();
-      weather.hidden = false;
-      weather.innerHTML =
-        `<button class="close" aria-label="Fermer">×</button>` +
-        (leg
-          ? `<h2>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</h2>` +
-            `<div class="small">${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}` +
-            ` · ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))}</div>` +
-            `<div class="small">Point cliqué : ${formatPosition(at)}</div>`
-          : `<h2>Point ${formatPosition(at)}</h2>`) +
-        `<h3>Vent maintenant</h3><div class="now">Chargement…</div>` +
-        `<div class="small"><a href="${windyLink(at)}" target="_blank" rel="noopener">Ce point sur Windy : vent maintenant et prévisions ↗</a></div>` +
-        (leg
-          ? `<div class="small"><a href="${windyRouteLink(route.path)}" target="_blank" rel="noopener">L'étape tracée sur Windy, ` +
-            `avec la météo le long du trajet ↗</a> (la vitesse du bateau et les milles se règlent une fois dans Windy)</div>`
-          : '') +
-        `<h3>Rose des vents</h3>` +
-        `<div class="rose-controls">` +
-        `<div class="rose-view" role="group" aria-label="Vue de la rose">` +
-        Object.entries(ROSE_VIEWS).map(([view, label]) =>
-          `<button type="button" data-view="${view}" aria-pressed="${view === roseView}">${label}</button>`).join('') +
-        `</div>` +
-        `<label>Sur <input type="range" class="rose-years" min="1" max="${ROSE_MAX_YEARS}" value="${roseYears}"> ` +
-        `<output>${yearsText(roseYears)}</output></label></div>` +
-        `<div class="rose-status"></div><div class="trend"></div>` +
-        `<p class="credit">Données : Open-Meteo.com (CC BY 4.0). Indicatif : ne remplace pas les bulletins météo officiels.</p>`;
-      weather.querySelector('.close').addEventListener('click', () => {
-        weather.hidden = true;
-        roseKey = null;
-        clickedPoint.remove();
-        legHighlight.remove();
-      });
-      const now = weather.querySelector('.now');
-      const trend = weather.querySelector('.trend');
-
-      currentWind(points.map(([, point]) => point))
-        .then(winds => {
-          now.innerHTML = '<table>' + winds.map((wind, i) =>
-            `<tr><td>${points[i][0]}</td><td>${describeWind(wind)}</td></tr>`).join('') + '</table>' +
-            `<div class="small">Relevé du ${escapeHtml(new Date(`${winds[0].time}Z`).toLocaleString('fr-CH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }))} UTC</div>`;
-        })
-        .catch(error => { now.textContent = weatherErrorMessage(error, `Indisponible (${error.message}).`); });
-
-      const years = weather.querySelector('.rose-years');
-      const yearsLabel = weather.querySelector('.rose-controls output');
-      const status = weather.querySelector('.rose-status');
-      const hiddenSeasons = new Set();
-      let climate = null;
-
-      const showRose = () => {
-        if (!climate) return;
-        if (roseView === 'year') {
-          trend.innerHTML =
-            `<div class="small">Près du point cliqué (archives sur une grille de 0,1°), sur toute l'année, ${escapeHtml(climate.span)}. Les pétales montrent d'où vient le vent.</div>` +
-            roseSvg(climate.year) + speedScale() + `<p>${escapeHtml(roseSummary(climate.year))}</p>`;
-          return;
-        }
-        trend.innerHTML =
-          `<div class="small">Près du point cliqué (archives sur une grille de 0,1°), ${escapeHtml(climate.span)}. Chaque contour montre d'où vient le vent pendant une saison : ` +
-          `plus il s'étire vers un point cardinal, plus le vent souffle souvent de là. Un bouton cache ou montre sa saison.</div>` +
-          seasonLegend(highlight) + seasonRoseSvg(climate.seasons, highlight) + seasonTable(climate.seasons, highlight) +
-          `<div class="small">Moyen : vitesse moyenne. F5+ et F7+ : part du temps à force 5 ou plus (17 nd et plus), à force 7 ou plus (28 nd et plus).` +
-          (highlight == null ? '' : ` En gras : ${SEASONS[highlight].label.toLowerCase()}, la saison du départ de l'étape.`) + `</div>`;
-        trend.querySelectorAll('.season-legend button').forEach(button => {
-          const season = Number(button.dataset.season);
-          const apply = () => {
-            const shown = !hiddenSeasons.has(season);
-            button.setAttribute('aria-pressed', String(shown));
-            trend.querySelector(`.rose g[data-season="${season}"]`).style.display = shown ? '' : 'none';
-          };
-          apply();
-          button.addEventListener('click', () => {
-            if (!hiddenSeasons.delete(season)) hiddenSeasons.add(season);
-            apply();
-          });
-        });
-      };
-
-      const drawRose = () => {
-        const request = ++roseRequest;
-        const total = Number(years.value);
-        let done = 0;
-        const showProgress = pause => {
-          if (request !== roseRequest) return;
-          status.innerHTML = progressBar(done / total, `Archives : ${done} / ${total} ${total === 1 ? 'an chargé' : 'ans chargés'}` +
-            (pause ? ` · pause imposée par le quota Open-Meteo, reprise dans ${pause} s` : ''));
-        };
-        showProgress();
-        const pacing = { onWait: showProgress, cancelled: () => roseKey !== key };
-        windClimate(at, total, count => { done = count; showProgress(); }, pacing)
-          .then(result => {
-            if (request !== roseRequest) return;
-            status.textContent = '';
-            climate = result;
-            showRose();
-          })
-          .catch(error => {
-            if (request !== roseRequest) return;
-            console.warn('Rose des vents :', error);
-            status.innerHTML = progressBar(0, weatherErrorMessage(error, 'Pas de données disponibles pour ce point.'), true);
-            trend.innerHTML = '';
-          });
-      };
-
-      weather.querySelectorAll('.rose-view button').forEach(button => button.addEventListener('click', () => {
-        roseView = button.dataset.view;
-        weather.querySelectorAll('.rose-view button').forEach(other =>
-          other.setAttribute('aria-pressed', String(other === button)));
-        showRose();
-      }));
-      let pending;
-      years.addEventListener('input', () => {
-        roseYears = Number(years.value);
-        yearsLabel.textContent = yearsText(roseYears);
-        clearTimeout(pending);
-        pending = setTimeout(drawRose, 350);
-      });
-      drawRose();
+    // A click on a leg opens its panel.
+    function openLeg(route) {
+      closeWindWindow();
+      if (editing && editing !== route) stopEditing();
+      showLegPanel(route);
     }
 
-    function render({ title, workbook, legs }) {
+    function closeLegPanel() {
+      stopEditing();
+      closeWindWindow();
+      legPanel.hidden = true;
+      shownRoute = null;
+      legHighlight.remove();
+    }
+
+    function showLegPanel(route) {
+      const { leg } = route;
+      shownRoute = route;
+      legHighlight.setLatLngs(highlightPaths(route)).addTo(map).bringToBack();
+      legPanel.hidden = false;
+      legPanel.innerHTML =
+        `<button class="close" aria-label="Fermer">×</button>` +
+        `<h2>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</h2>` +
+        `<div class="small">${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}</div>` +
+        `<div class="small leg-distances">${legDistances(leg)}</div>` +
+        windSectionHtml(route) +
+        `<div class="trial"></div>` +
+        `<h3>Liens</h3><div class="small leg-links"></div>`;
+      showTrialPanel();
+      showLegLinks(route);
+      legPanel.querySelector('.wind-how')?.addEventListener('click', () => openWindWindow(route));
+      legPanel.querySelector('.close').addEventListener('click', closeLegPanel);
+    }
+
+    // « Et si… ? » : passages the viewer places on a leg. The leg's path is recomputed through them,
+    // by sea, on the coast mask the export wrote (sea-route.js), so that their coordinates can be
+    // copied into the workbook. Each leg keeps its passages in this browser only (`trial|<leg>`):
+    // the workbook stays the only source of the voyage.
+    const METERS_PER_NM = 1852;
+    let voyageRoute;
+    let shownRoute = null;
+    const legRoutes = new Map();
+    const trials = new Map();
+    const seaStretches = new Map();
+    let editing = null;
+    let trialMessage = '';
+    let trialSpeed = 5;
+    // How close to the wind the boat sails, in degrees: closer than that, it tacks.
+    let pointingDeg = 45;
+
+    // One speed for the manual route's panel and the window of the roses, whichever sets it.
+    function setSpeed(speed) {
+      trialSpeed = speed;
+      for (const field of document.querySelectorAll('.leg-panel .speed, .wind-window .speed')) {
+        if (Number(field.value) !== speed) field.value = speed;
+      }
+      const figures = legPanel.querySelector('.trial .figures');
+      if (figures && shownRoute) figures.innerHTML = trialFigures(shownRoute);
+      if (windowRoute && !windWindow.hidden) windWindow.querySelector('.wind-figures').innerHTML = windTableHtml(windowRoute);
+    }
+    let coastMask;
+    let coast = null;
+
+    function loadCoastMask() {
+      coastMask ??= new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+          const canvas = Object.assign(document.createElement('canvas'), { width: image.width, height: image.height });
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          context.drawImage(image, 0, 0);
+          const { data } = context.getImageData(0, 0, image.width, image.height);
+          resolve({ ...voyageRoute.mask, width: image.width, height: image.height, data });
+        };
+        image.onerror = () => reject(new Error(`${voyageRoute.mask.file} introuvable`));
+        image.src = voyageRoute.mask.file;
+      }).then(
+        mask => {
+          coast = mask;
+          trials.forEach((trial, key) => setPassages(legRoutes.get(key), trial.points));
+        },
+        () => {
+          trialMessage = 'Côtes indisponibles : les passages ne sont ni contrôlés ni contournés.';
+          showTrialPanel();
+        },
+      );
+      return coastMask;
+    }
+
+    // The mask's grey levels, written by tools/export_voyage.py: open sea, closer to the coast
+    // than the computed path keeps, land.
+    function coastAt(mask, { lat, lng }) {
+      const row = Math.floor((mask.north - lat) / mask.dlat);
+      const col = Math.floor((lng - mask.west) / mask.dlon);
+      if (row < 0 || col < 0 || row >= mask.height || col >= mask.width) return null;
+      const level = mask.data[4 * (row * mask.width + col)];
+      return level < 64 ? 'sea' : level < 192 ? 'coast' : 'land';
+    }
+
+    const legKey = route => route.leg['Étape'];
+    const legPath = route => trials.get(legKey(route))?.path ?? route.path;
+    const pathNm = path => path.slice(1).reduce((sum, to, i) => sum + map.distance(path[i], to), 0) / METERS_PER_NM;
+    const passagesText = points => points.map(({ lat, lng }) => `${lat.toFixed(4)}, ${lng.toFixed(4)}`).join('; ');
+
+    function formatHours(hours) {
+      const total = Math.round(Math.abs(hours));
+      const days = Math.floor(total / 24);
+      return days ? `${days} j ${total % 24} h` : `${total} h`;
+    }
+
+    // Straight between the passages until the mask is there, by sea once it is.
+    // The export computes no path for a leg through a canal: the coastline has no canals. Its passages
+    // may lie on land, along the canal, and are joined in straight lines.
+    const throughCanal = route => !route.leg.route;
+
+    function trialPath(route, points) {
+      const stops = [route.ends[0], ...points.map(({ lat, lng }) => [lat, lng]), route.ends[1]];
+      if (!coast || throughCanal(route)) return stops;
+      return stops.slice(1).reduce((path, to, i) => {
+        const key = `${stops[i]}>${to}`;
+        if (!seaStretches.has(key)) seaStretches.set(key, seaRoute(coast, stops[i], to));
+        return [...path, ...seaStretches.get(key).slice(1)];
+      }, [stops[0]]);
+    }
+
+    function setPassages(route, points) {
+      const key = legKey(route);
+      if (!trials.has(key)) {
+        const line = L.polyline([], { color: TRIAL_COLOR, weight: 3, bubblingMouseEvents: false });
+        line.bindTooltip(() => `<b>Étape ${escapeHtml(key)} · parcours manuel</b><br>` +
+          `${Math.round(pathNm(trials.get(key)?.path ?? []))} NM`, { sticky: true });
+        line.on('click', event => (editing ? addTrialPoint(event.latlng) : openLeg(route)));
+        trials.set(key, { points: [], path: null, markers: L.layerGroup(), line });
+      }
+      const trial = trials.get(key);
+      try {
+        trial.path = points.length ? trialPath(route, points) : null;
+        trial.points = points;
+        trialMessage = '';
+      } catch (error) {
+        trialMessage = `Point refusé : ${error.message}.`;
+      }
+      if (trial.points.length) storeSet(`trial|${key}`, trial.points.map(({ lat, lng }) => [lat, lng]));
+      else storeDrop(stored => stored === `trial|${key}`);
+      drawLeg(route);
+      showTrialPanel();
+    }
+
+    function drawLeg(route) {
+      const key = legKey(route);
+      const trial = trials.get(key);
+      if (trial?.points.length) {
+        trial.line.setLatLngs(trial.path).addTo(map);
+        trial.markers.clearLayers().addTo(map);
+        const editable = editing === route;
+        trial.points.forEach((point, i) => {
+          const marker = L.marker(point, {
+            draggable: editable,
+            interactive: editable,
+            icon: L.divIcon({ className: 'trial-point', iconSize: [14, 14] }),
+            title: editable ? 'Glisser pour déplacer, cliquer pour retirer' : '',
+          }).addTo(trial.markers);
+          if (!editable) return;
+          marker
+            .on('click', () => setPassages(route, trial.points.filter((_, j) => j !== i)))
+            .on('dragend', event => {
+              const at = event.target.getLatLng().wrap();
+              trialMessage = refusal(route, at);
+              if (trialMessage) {
+                drawLeg(route);
+                showTrialPanel();
+              } else {
+                setPassages(route, trial.points.map((other, j) => (j === i ? at : other)));
+              }
+            });
+        });
+      } else if (trial) {
+        trial.markers.remove();
+        trial.line.remove();
+        trials.delete(key);
+      }
+      if (shownRoute === route) {
+        if (map.hasLayer(legHighlight)) legHighlight.setLatLngs(highlightPaths(route));
+        const distances = legPanel.querySelector('.leg-distances');
+        if (distances) distances.innerHTML = legDistances(route.leg);
+        showLegLinks(route);
+      }
+      refreshWind(route);
+      document.querySelector('.legend .trial-legend').hidden = trials.size === 0;
+      showTrialsExport();
+    }
+
+    // One row per leg, in the workbook's order, so that the passages paste as one column beside it.
+    function trialsTable() {
+      const header = ['Étape', 'Zone / itinéraire', 'Passages imposés', 'Parcours manuel (NM)', 'Parcours auto (NM)', 'Tableur (NM)'];
+      return [header, ...[...legRoutes.values()].map(route => {
+        const trial = trials.get(legKey(route));
+        return [
+          legKey(route),
+          route.leg['Zone / itinéraire'] ?? '',
+          trial ? passagesText(trial.points) : '',
+          trial ? String(Math.round(pathNm(trial.path))) : '',
+          String(route.leg.route?.nm ?? ''),
+          String(route.leg['Distance estimée (NM)'] ?? ''),
+        ];
+      })];
+    }
+
+    function showTrialsExport() {
+      const box = document.querySelector('.legend .trials-export');
+      if (!box) return;
+      box.hidden = trials.size === 0;
+      if (box.hidden) return;
+      const count = trials.size;
+      box.innerHTML = `<span>${count} parcours manuel${count > 1 ? 's' : ''} :</span>` +
+        `<button type="button" class="csv">Télécharger en CSV</button>` +
+        `<button type="button" class="tsv">Copier pour Excel</button>`;
+      box.querySelector('.csv').addEventListener('click', () => {
+        // Semicolons and a byte-order mark: what a French Excel opens without asking.
+        const cell = value => (/[";\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
+        const csv = '\uFEFF' + trialsTable().map(row => row.map(cell).join(';')).join('\r\n') + '\r\n';
+        const link = Object.assign(document.createElement('a'), {
+          href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })),
+          download: 'njord-passages.csv',
+        });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        // Revoked at once, the address would be gone before the browser starts the download.
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      });
+      box.querySelector('.tsv').addEventListener('click', event => {
+        // Tabs and line breaks: Excel spreads a pasted text over cells.
+        const text = trialsTable().map(row => row.join('\t')).join('\n');
+        Promise.resolve().then(() => navigator.clipboard.writeText(text))
+          .then(() => { event.target.textContent = 'Copié'; })
+          .catch(() => { event.target.textContent = 'Copie refusée par le navigateur : utiliser le CSV'; });
+      });
+    }
+
+    function startEditing(route) {
+      editing = route;
+      trialMessage = '';
+      map.getContainer().classList.add('trial-mode');
+      loadCoastMask();
+      drawLeg(route);
+      showTrialPanel();
+    }
+
+    function stopEditing() {
+      if (!editing) return;
+      const route = editing;
+      editing = null;
+      trialMessage = '';
+      map.getContainer().classList.remove('trial-mode');
+      drawLeg(route);
+      showTrialPanel();
+    }
+
+    // A new passage goes where it lengthens the leg least: a click near a stretch bends that stretch.
+    function insertionIndex(route, points, at) {
+      const stops = [L.latLng(route.ends[0]), ...points, L.latLng(route.ends[1])];
+      let best = 0;
+      let bestExtra = Infinity;
+      for (let i = 0; i < stops.length - 1; i++) {
+        const extra = map.distance(stops[i], at) + map.distance(at, stops[i + 1]) - map.distance(stops[i], stops[i + 1]);
+        if (extra < bestExtra) [best, bestExtra] = [i, extra];
+      }
+      return best;
+    }
+
+    // The only rule: no passage on land, except along a canal.
+    function refusal(route, at) {
+      if (throughCanal(route)) return '';
+      return coast && coastAt(coast, at) === 'land' ? 'Point refusé : il est à terre.' : '';
+    }
+
+    function addTrialPoint(latlng) {
+      const at = latlng.wrap();
+      trialMessage = refusal(editing, at);
+      if (trialMessage) {
+        showTrialPanel();
+        return;
+      }
+      const points = [...(trials.get(legKey(editing))?.points ?? [])];
+      points.splice(insertionIndex(editing, points, at), 0, at);
+      setPassages(editing, points);
+    }
+
+    function trialFigures(route) {
+      if (!trials.has(legKey(route))) return 'Cliquer sur la carte pour poser un premier passage.';
+      const nm = pathNm(legPath(route));
+      const reference = route.leg.route
+        ? { nm: route.leg.route.nm, label: 'au parcours auto' }
+        : { nm: pathNm(route.ends), label: 'au parcours auto (ligne droite)' };
+      const delta = nm - reference.nm;
+      const sign = delta >= 0 ? '+' : '−';
+      const hours = nm / trialSpeed;
+      const planned = (utcDate(route.leg['Arrivée prévue']) - utcDate(route.leg['Départ prévu'])) / 86_400_000 + 1;
+      const margin = planned * 24 - hours;
+      return `<b>${Math.round(nm)} NM</b> · ${formatHours(hours)} de navigation<br>` +
+        `${sign}${Math.round(Math.abs(delta))} NM, ${sign}${formatHours(delta / trialSpeed)} par rapport ${reference.label} ` +
+        `(${Math.round(reference.nm)} NM)<br>` +
+        (margin >= 0
+          ? `Marge : ${formatHours(margin)} sur ${planned} j prévus`
+          : `<span class="warning">Dépasse de ${formatHours(margin)} les ${planned} j prévus</span>`);
+    }
+
+    function showTrialPanel() {
+      const box = legPanel.querySelector('.trial');
+      const route = shownRoute;
+      if (!box || !route?.leg) return;
+      const points = trials.get(legKey(route))?.points ?? [];
+      const isEditing = editing === route;
+      if (!isEditing && !points.length) {
+        box.innerHTML = `<button type="button" class="edit">Créer un parcours manuel</button>` +
+          (trialMessage ? `<div class="warning">${escapeHtml(trialMessage)}</div>` : '');
+      } else {
+        const passages = passagesText(points);
+        box.innerHTML =
+          `<h3>${isEditing ? 'Parcours manuel · modification' : 'Parcours manuel'}</h3>` +
+          (isEditing
+            ? `<div class="small">${throughCanal(route)
+              ? "Étape par un canal : poser les passages le long du canal, à terre s'il le faut ; ils sont reliés en ligne droite."
+              : "Cliquer sur la carte pour ajouter un passage : le parcours manuel est recalculé par la mer en passant par lui."} ` +
+              `Glisser un passage pour le déplacer, cliquer dessus pour le retirer.</div>`
+            : '') +
+          `<div class="small">Le parcours auto reste en bleu, le parcours manuel est en violet. Ses passages sont gardés ` +
+          `dans ce navigateur, jamais dans le tableur.</div>` +
+          `<label class="small">Vitesse <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd</label>` +
+          `<div class="figures">${trialFigures(route)}</div>` +
+          (trialMessage ? `<div class="warning">${escapeHtml(trialMessage)}</div>` : '') +
+          (points.length
+            ? `<ol>${points.map(({ lat, lng }) => `<li>${lat.toFixed(4)}, ${lng.toFixed(4)}</li>`).join('')}</ol>` +
+              `<label class="small">Passages, pour le tableur<input class="passages" readonly value="${passages}"></label>`
+            : '') +
+          `<div class="actions">` +
+          (isEditing
+            ? `<button type="button" class="done">Terminer</button>`
+            : `<button type="button" class="edit">Modifier le parcours manuel</button>`) +
+          (points.length
+            ? `<button type="button" class="copy">Copier les passages</button>` +
+              `<button type="button" class="clear">Supprimer le parcours manuel</button>`
+            : '') +
+          `</div>`;
+        box.querySelector('.speed').addEventListener('input', event => {
+          const speed = Number(event.target.value);
+          if (speed > 0) setSpeed(speed);
+        });
+      }
+      box.querySelector('.edit')?.addEventListener('click', () => startEditing(route));
+      box.querySelector('.done')?.addEventListener('click', stopEditing);
+      box.querySelector('.clear')?.addEventListener('click', () => setPassages(route, []));
+      box.querySelector('.copy')?.addEventListener('click', event => {
+        // The clipboard exists only on https or localhost: elsewhere, the text is selected instead.
+        Promise.resolve().then(() => navigator.clipboard.writeText(passagesText(points)))
+          .then(() => { event.target.textContent = 'Copié'; })
+          .catch(() => {
+            box.querySelector('.passages').select();
+            event.target.textContent = 'Sélectionné : Ctrl+C pour copier';
+          });
+      });
+    }
+
+    function render({ title, workbook, legs, route }) {
+      voyageRoute = route;
       // A voyage.json written from a v1 workbook has no positions, and the map invents none.
       if (legs.some(leg => !leg['Position embarquement'] || !leg['Position débarquement'])) {
         throw new Error(`${VOYAGE_URL} ne contient pas les positions des ports : relance ./update.sh avec un tableur v2.`);
@@ -350,28 +959,36 @@
       };
 
       legs.forEach(leg => {
-        const path = [leg['Position embarquement'], leg['Position débarquement']];
+        const ends = [leg['Position embarquement'], leg['Position débarquement']];
+        // A leg through a canal has no computed path: the coastline knows no canals.
+        const path = leg.route?.path ?? ends;
         const line = L.polyline(path, {
           color: ROUTE_COLOR,
           weight: 3,
           // The leg handles its own clicks: the map's handler is for clicks off the route.
           bubblingMouseEvents: false,
         }).addTo(map);
+        const route = { leg, path, ends, line };
+        legRoutes.set(leg['Étape'], route);
         line.bindTooltip(
-          `<b>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</b><br>` +
-          `${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}` +
-          ` · ${escapeHtml(formatDistance(leg['Distance estimée (NM)']))}`,
+          () => `<b>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</b><br>` +
+            `${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}<br>` +
+            legDistances(leg),
           { sticky: true },
         );
-        line.on('click', event => showWeather({ leg, path }, event.latlng.wrap()));
+        line.on('click', event => editing ? addTrialPoint(event.latlng) : openLeg(route));
+        const kept = storeGet(`trial|${leg['Étape']}`);
+        if (Array.isArray(kept) && kept.length && kept.every(point => Array.isArray(point) && point.every(Number.isFinite))) {
+          setPassages(route, kept.map(([lat, lon]) => L.latLng(lat, lon)));
+        }
         bounds.extend(line.getBounds());
         L.marker(line.getCenter(), {
           icon: L.divIcon({ className: 'leg-number', html: escapeHtml(leg['Étape']), iconSize: [22, 22] }),
           interactive: false,
         }).addTo(map);
-        visit(path[0], leg['Embarquement hypothétique'],
+        visit(ends[0], leg['Embarquement hypothétique'],
           `Départ ${escapeHtml(formatDate(leg['Départ prévu']))} (étape ${escapeHtml(leg['Étape'])})`);
-        visit(path[1], leg['Débarquement hypothétique'],
+        visit(ends[1], leg['Débarquement hypothétique'],
           `Arrivée ${escapeHtml(formatDate(leg['Arrivée prévue']))} (étape ${escapeHtml(leg['Étape'])})`);
       });
 
@@ -382,7 +999,7 @@
           weight: 2,
           fillColor: ROUTE_COLOR,
           fillOpacity: 1,
-          // A click on a port opens its dates, not the weather of the spot.
+          // A click on a port opens its dates, not the leg's panel.
           bubblingMouseEvents: false,
         })
           .bindTooltip(escapeHtml(names[0]), { permanent: true, direction: 'right', className: 'port-label' })
@@ -392,207 +1009,31 @@
 
       // The extra top padding keeps the northern end clear of the title panel.
       map.fitBounds(bounds, { paddingTopLeft: [20, 80], paddingBottomRight: [20, 20] });
+      if (trials.size) loadCoastMask();
+      document.querySelector('.route-label').textContent =
+        `Parcours auto : le plus court chemin en mer, à ${route.coastDistanceNm} NM des côtes quand c'est possible ` +
+        `(côtes : ${route.coastline}). Un calcul, pas une route de navigation.`;
       const first = formatDate(legs[0]['Départ prévu']);
       const last = formatDate(legs.at(-1)['Arrivée prévue']);
       // The workbook without a suffix is version 1, as tools/export_voyage.py counts them.
       const version = Number(workbook.match(/_v(\d{2})\.xlsx$/)?.[1] ?? 1);
       panel.innerHTML =
         `<h1>${escapeHtml(title)}<span class="version" title="Données du tableur ${escapeHtml(workbook)}">v${version}</span></h1>` +
-        `<p>${legs.length} étapes, du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports placés aux positions du tableur.</p>`;
+        `<p>${legs.length} étapes, du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports placés aux positions du tableur, tracés calculés entre eux.</p>`;
     }
 
-    map.on('click', event => showWeather(null, event.latlng.wrap()));
-
-    // Below this spacing, in pixels, the arrows would overlap.
-    const WIND_MIN_SPACING = 40;
-    // Points per request: small enough for a smooth progress bar and a short URL.
-    const WIND_CHUNK = 50;
-    // Requests in flight at once.
-    const WIND_PARALLEL = 3;
-    const windBox = document.querySelector('.windbox');
-    const windToggle = windBox.querySelector('.wind-toggle');
-    const windControls = windBox.querySelector('.wind-controls');
-    const windModel = windBox.querySelector('.wind-model');
-    const windStyle = windBox.querySelector('.wind-style');
-    const windStyleNote = windBox.querySelector('.wind-style-note');
-    const windDensity = windBox.querySelector('.wind-density');
-    const windDensityLabel = windBox.querySelector('.wind-density-label');
-    const windHour = windBox.querySelector('.wind-hour');
-    const windHourLabel = windBox.querySelector('.wind-hour-label');
-    const windLayer = L.layerGroup();
-    let windPoints = [];
-
-    windModel.innerHTML = Object.entries(WIND_MODELS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
-    windStyle.innerHTML = Object.entries(WIND_SYMBOLS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
-    const STYLE_NOTES = {
-      arrow: 'La flèche va où va le vent ; plus elle est longue, plus il est fort.',
-      barb: "La tige pointe d'où vient le vent. Demi-trait : 5 nd, trait : 10 nd, fanion : 50 nd, rond : calme.",
-    };
-    const showStyleNote = () => { windStyleNote.textContent = STYLE_NOTES[windStyle.value]; };
-    showStyleNote();
-    windHour.max = String(WIND_HOURS);
-    windBox.querySelector('.wind-bands').innerHTML = speedScale();
-
-    const wrapLongitude = lon => ((lon + 540) % 360) - 180;
-
-    // Points of a lattice fixed in degrees, so that panning keeps the points already loaded. Its step
-    // halves at each zoom level, as the scale doubles: every zoom gets the density asked for, and
-    // zooming in keeps every other point of the coarser lattice.
-    function windGridPoints() {
-      const size = map.getSize();
-      const spacing = Math.max(WIND_MIN_SPACING, Math.sqrt(size.x * size.y / Number(windDensity.value)));
-      const step = spacing * 360 / 256 / 2 ** Math.round(map.getZoom());
-      // Mercator stretches latitudes: a shorter step keeps the rows about as far apart as the columns.
-      const latStep = step * 0.7;
-      const bounds = map.getBounds();
-      const points = [];
-      for (let row = Math.ceil(bounds.getSouth() / latStep); row * latStep <= bounds.getNorth(); row++) {
-        for (let column = Math.ceil(bounds.getWest() / step); column * step <= bounds.getEast(); column++) {
-          points.push([Number((row * latStep).toFixed(4)), Number((column * step).toFixed(4))]);
-        }
-      }
-      return points;
-    }
-
-    function drawWind() {
-      windLayer.clearLayers();
-      const offset = Number(windHour.value);
-      const now = new Date();
-      const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + offset));
-      windPoints.forEach(({ at, series }) => {
-        const index = (target - series.start) / HOUR;
-        const speed = series.speed[index];
-        const direction = series.direction[index];
-        if (speed == null || direction == null) return;
-        L.marker(at, {
-          icon: L.divIcon({
-            className: 'wind-icon',
-            html: windStyle.value === 'barb' ? windBarb(direction, speed) : windVector(direction, speed),
-            iconSize: [48, 48],
-          }),
-          interactive: false,
-        }).addTo(windLayer);
-      });
-      const time = target.toLocaleString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-      windHourLabel.textContent = `${offset ? `+${offset} h` : 'Maintenant'} · ${time} UTC`;
-    }
-
-    const mapProgress = document.querySelector('.map-progress');
-
-    // The bar over the map: the load's progress, a pause for the quota, or a refusal, explained inside.
-    function showWindProgress(done, total, pause) {
-      mapProgress.hidden = done >= total;
-      mapProgress.classList.remove('error');
-      mapProgress.querySelector('.fill').style.width = `${total ? done / total * 100 : 0}%`;
-      mapProgress.querySelector('.text').textContent = `Vent sur la carte : ${done} / ${total} points chargés` +
-        (pause ? ` · pause imposée par le quota Open-Meteo (600 points par minute), reprise dans ${pause} s` : '');
-    }
-
-    function showWindError(message) {
-      mapProgress.hidden = false;
-      mapProgress.classList.add('error');
-      mapProgress.querySelector('.fill').style.width = '0';
-      mapProgress.querySelector('.text').textContent = message;
-    }
-
-    // At most `limit` workers at once, each taking the next item when it is free.
-    async function inParallel(items, limit, worker) {
-      let next = 0;
-      await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (next < items.length) await worker(items[next++]);
-      }));
-    }
-
-    // Draws at once the arrows already known for the new view, then adds the others chunk by chunk.
-    // A newer call (zoom, pan, model) stops this one from asking for more.
-    async function loadWind() {
-      const request = ++windRequest;
-      const model = windModel.value;
-      const points = windGridPoints();
-      const known = () => points.filter(point => cachedForecast(model, point));
-      const showKnown = () => {
-        windPoints = known().map(at => ({ at, series: cachedForecast(model, at) }));
-        drawWind();
-      };
-      const missing = points.filter(point => !cachedForecast(model, point));
-      // Until something of the new view is known, the previous arrows stay rather than a blank map.
-      if (known().length) showKnown();
-      if (!missing.length) {
-        showWindProgress(0, 0);
-        return;
-      }
-
-      const chunks = [];
-      for (let i = 0; i < missing.length; i += WIND_CHUNK) chunks.push(missing.slice(i, i + WIND_CHUNK));
-      let done = 0;
-      let failure = null;
-      const pacing = {
-        cancelled: () => request !== windRequest,
-        onWait: seconds => showWindProgress(done, missing.length, seconds),
-      };
-      showWindProgress(0, missing.length);
-      await inParallel(chunks, WIND_PARALLEL, async chunk => {
-        if (request !== windRequest || failure) return;
-        try {
-          const series = await windForecast(chunk.map(([lat, lon]) => [lat, wrapLongitude(lon)]), model, pacing);
-          chunk.forEach((point, k) => keepForecast(model, point, series[k]));
-        } catch (error) {
-          failure = error;
-          return;
-        }
-        done += chunk.length;
-        if (request !== windRequest) return;
-        showWindProgress(done, missing.length);
-        showKnown();
-      });
-      if (request !== windRequest) return;
-      showWindProgress(0, 0);
-      if (failure) {
-        console.warn('Vent sur la carte :', failure);
-        showWindError(weatherErrorMessage(failure, 'Pas de données disponibles pour ce modèle.'));
-      }
-    }
-
-    windToggle.addEventListener('change', () => {
-      windControls.hidden = !windToggle.checked;
-      if (windToggle.checked) {
-        windLayer.addTo(map);
-        loadWind();
-      } else {
-        windRequest += 1;
-        windLayer.remove();
-        showWindProgress(0, 0);
-      }
-    });
-    windModel.addEventListener('change', loadWind);
-    windStyle.addEventListener('change', () => {
-      showStyleNote();
-      if (windPoints.length) drawWind();
-    });
-    windBox.querySelector('.wind-reload').addEventListener('click', () => {
-      dropForecasts();
-      loadWind();
-    });
-    windHour.addEventListener('input', () => { if (windPoints.length) drawWind(); });
-    let densityPending;
-    windDensity.addEventListener('input', () => {
-      windDensityLabel.textContent = `≈ ${windDensity.value} points`;
-      clearTimeout(densityPending);
-      densityPending = setTimeout(loadWind, 500);
-    });
-    // After a zoom or a pan, once the map has settled.
-    let movePending;
-    map.on('moveend', () => {
-      if (!windToggle.checked) return;
-      clearTimeout(movePending);
-      movePending = setTimeout(loadWind, 400);
-    });
+    // A click off the legs closes the open one, or places a passage while a manual route is drawn.
+    map.on('click', event => (editing ? addTrialPoint(event.latlng) : closeLegPanel()));
 
     // Opened from file://, the browser refuses fetch(): the page has to be served.
     async function start() {
       try {
         const response = await fetch(VOYAGE_URL, { cache: 'no-store' });
         if (!response.ok) throw new Error(`${VOYAGE_URL} : HTTP ${response.status}`);
+        // Optional: without it, the panels simply have no wind statistics.
+        windStats = await fetch('wind-stats.json', { cache: 'no-store' })
+          .then(answer => (answer.ok ? answer.json() : null))
+          .catch(() => null);
         render(await response.json());
       } catch (error) {
         panel.classList.add('error');
