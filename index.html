@@ -14,6 +14,7 @@
   <script src="weather.js"></script>
   <script src="sea-route.js"></script>
   <script src="route-wind.js"></script>
+  <script src="moon.js"></script>
   <style>
     :root { --route: #1d4e89; --trial: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; }
     html, body { height: 100%; margin: 0; }
@@ -109,6 +110,11 @@
 
     .leg-links .gpx { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
     .leg-links button { padding: 3px 9px; border: 1px solid var(--route); border-radius: 3px; background: #fff; color: var(--route); font-size: 12px; cursor: pointer; }
+    .tide-strip { display: flex; gap: 1px; margin: 4px 0 2px; }
+    .tide-strip span { flex: 1; min-width: 0; text-align: center; font-size: 11px; line-height: 22px; }
+    .tide-marks { display: flex; gap: 1px; color: #444; font-size: 10px; }
+    .tide-marks span { flex: 1; min-width: 0; overflow: visible; white-space: nowrap; }
+    .tide-strip .leg-day { box-shadow: inset 0 -3px 0 #ffd84d; }
     .trial { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--trial); background: #faf6fc; }
     .trial h3 { margin-top: 0; color: var(--trial); }
     .trial .figures { margin: 6px 0; line-height: 1.5; }
@@ -633,16 +639,18 @@
           `<td>${lines(list, one => `${Math.round(one.nm)} NM`)}</td>` +
           `<td>${lines(list, duration)}</td>` +
           `<td>${lines(list, one => (one.stats ? windPercent(one.stats.shares.close) : '—'))}</td>` +
+          `<td>${TIDE_WORDS[tideKind(tideStrength(utcDate(leg['Départ prévu']).getTime() + NOON_MS))]}</td>` +
           `<td>${lines(list, margin)}</td></tr>`;
       }).join('');
       const autos = [...legRoutes.values()].map(route => routeList(route)[0]);
       const totalNm = autos.reduce((sum, one) => sum + one.nm, 0);
       const totalHours = autos.reduce((sum, one) => sum + hours(one), 0);
       return `<table class="figures-table voyage-table"><thead><tr><th>Étape</th><th>Trajet</th><th>Distance</th>` +
-        `<th>Durée en tirant des bords${why('tacking')}</th><th>Vent de face${why('shares')}</th><th>Marge${why('margin')}</th></tr></thead>` +
+        `<th>Durée en tirant des bords${why('tacking')}</th><th>Vent de face${why('shares')}</th>` +
+        `<th>Marée au départ${why('tide')}</th><th>Marge${why('margin')}</th></tr></thead>` +
         `<tbody>${rows}</tbody>` +
         `<tfoot><tr class="total"><td></td><td>Parcours auto, en tout</td><td>${Math.round(totalNm)} NM</td>` +
-        `<td>${formatHours(totalHours)}</td><td></td><td></td></tr></tfoot></table>`;
+        `<td>${formatHours(totalHours)}</td><td></td><td></td><td></td></tr></tfoot></table>`;
     }
 
     function listenVoyageRows() {
@@ -691,6 +699,7 @@
         `<div class="trial"></div>` +
         `<h3>Vers d'autres outils</h3><div class="small leg-links"></div>` +
         `<div class="wind-block"></div>` +
+        tideHtml(route) +
         `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
       showTrialPanel();
       renderWindBlock(route);
@@ -721,6 +730,45 @@
         navigator.share({ files: [gpxFile()], title: gpxName })
           .catch(error => error.name !== 'AbortError' && showMessage(`Envoi refusé par le navigateur : « GPX de l'étape » le télécharge.`, 'error'));
       });
+    }
+
+    const NOON_MS = 43_200_000;
+    // A leg may start a few days early or late: the strip shows them around its dates.
+    const TIDE_MARGIN_DAYS = 3;
+    const TIDE_WORDS = { springs: 'vives-eaux', neaps: 'mortes-eaux', between: 'entre les deux' };
+    const TIDE_PHRASES = { springs: 'en vives-eaux', neaps: 'en mortes-eaux', between: 'entre les deux' };
+    const MOON_SIGNS = { new: ['🌑', 'nouvelle lune'], first: ['🌓', 'premier quartier'], full: ['🌕', 'pleine lune'], last: ['🌗', 'dernier quartier'] };
+
+    // From pale (neaps) to the route's blue (springs), one hue as a scale of strength should be.
+    function tideColour(strength) {
+      const [pale, deep] = [[227, 234, 242], [29, 78, 137]];
+      return `rgb(${pale.map((value, i) => Math.round(value + (deep[i] - value) * strength)).join(', ')})`;
+    }
+
+    function tideHtml(route) {
+      const { leg } = route;
+      const departure = utcDate(leg['Départ prévu']).getTime();
+      const arrival = utcDate(leg['Arrivée prévue']).getTime();
+      const days = [];
+      for (let time = departure - TIDE_MARGIN_DAYS * MOON_DAY_MS; time <= arrival + TIDE_MARGIN_DAYS * MOON_DAY_MS; time += MOON_DAY_MS) {
+        days.push({ time, strength: tideStrength(time + NOON_MS) });
+      }
+      const phases = moonPhases(days[0].time, days.at(-1).time + MOON_DAY_MS);
+      const iso = time => new Date(time).toISOString().slice(0, 10);
+      const cells = days.map(({ time, strength }) => {
+        const phase = phases.find(one => one.time >= time && one.time < time + MOON_DAY_MS);
+        const sailing = time >= departure && time <= arrival;
+        return `<span class="${sailing ? 'leg-day' : ''}" style="background: ${tideColour(strength)}" ` +
+          `title="${dayMonth(iso(time), 0)} : ${TIDE_WORDS[tideKind(strength)]}${phase ? `, ${MOON_SIGNS[phase.kind][1]}` : ''}">` +
+          `${phase ? MOON_SIGNS[phase.kind][0] : ''}</span>`;
+      }).join('');
+      const marks = days.map(({ time }) => `<span>${time === departure ? '▲ départ' : time === arrival ? '▲ arrivée' : ''}</span>`).join('');
+      const kindOn = time => TIDE_PHRASES[tideKind(tideStrength(time + NOON_MS))];
+      return `<h3>Marée forte ou faible aux dates de l'étape ?${why('tide')}</h3>` +
+        `<div><b>Départ ${kindOn(departure)}, arrivée ${kindOn(arrival)}.</b></div>` +
+        `<div class="tide-strip">${cells}</div><div class="tide-marks">${marks}</div>` +
+        `<div class="small">Du ${dayMonth(iso(days[0].time), 0)} au ${dayMonth(iso(days.at(-1).time), 0)}, souligné en jaune : les jours de l'étape. ` +
+        `Clair : mortes-eaux (petit marnage), foncé : vives-eaux (grand marnage, courants forts). 🌑 nouvelle lune, 🌓 premier quartier, 🌕 pleine lune, 🌗 dernier quartier.</div>`;
     }
 
     const EXPORT_NOTE = 'Tracé calculé pour préparer le voyage, pas une route de navigation : à vérifier sur la carte marine.';
@@ -810,6 +858,14 @@
       },
       years: () => `La part de vent de face de l'année la plus facile et de la plus dure, de ${windStats.years[0]} ` +
         `à ${windStats.years[1]}.`,
+      tide: () => `La marée, c'est d'abord le niveau de l'eau qui monte et descend deux fois par jour ; le courant de marée en ` +
+        `découle. En vives-eaux, le marnage est le plus grand : pleine mer plus haute, basse mer plus basse (moins d'eau à ` +
+        `basse mer pour entrer au port ou mouiller), et les courants sont les plus forts. En mortes-eaux, c'est l'inverse : ` +
+        `marnage faible, mais une pleine mer plus basse, qui peut ne pas suffire pour un port à seuil ou qui assèche. Les ` +
+        `vives-eaux suivent la nouvelle et la pleine lune, les mortes-eaux les quartiers, sur les côtes atlantiques d'Europe ` +
+        `avec un jour et demi de retard environ, plus ou moins selon le port. Calculé d'après la Lune seule, sans données ` +
+        `de marée : ni heures ni hauteurs en mètres, qui changent d'un port à l'autre. En Méditerranée et en Baltique, la ` +
+        `marée est faible et compte peu.`,
       margin: () => `Les jours que le tableur prévoit pour l'étape, dates de départ et d'arrivée comprises, moins la durée ` +
         `en tirant des bords à la vitesse moyenne.`,
     };
