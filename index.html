@@ -50,6 +50,7 @@
     }
     .side h2 { margin: 0 0 4px; font-size: 16px; }
     .side h3 { margin: 16px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--route); }
+    .method-link { margin-top: 6px; padding: 5px 8px; border-left: 3px solid var(--route); background: #f2f5f9; }
     .side .small { color: #666; font-size: 11px; }
     .side .credit { margin-top: 14px; color: #666; font-size: 11px; }
     .manual-text { color: var(--trial); }
@@ -660,6 +661,8 @@
         `<h2>Le voyage · ${file.legs.length} étapes</h2>` +
         `<div class="small">Du ${escapeHtml(first)} au ${escapeHtml(last)}. Ports aux positions du tableur, parcours calculés entre eux. ` +
         `Parcours auto en bleu, parcours manuel en violet. Cliquer sur une étape pour son détail.</div>` +
+        `<div class="small method-link"><a href="preparer.html">Préparer le voyage</a> : ce qui rend chaque tronçon ` +
+        `incertain, ce que ce logiciel couvre et ce qu'il faut encore décider.</div>` +
         paceHtml() +
         `<div class="voyage-figures">${voyageTableHtml()}</div>` +
         `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;

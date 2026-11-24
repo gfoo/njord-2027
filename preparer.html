@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NJORD — préparer le voyage</title>
+  <style>
+    :root {
+      --navy: #17365d;
+      --sea: #1f6f78;
+      --paper: #f6efdc;
+      --card: #fbf7ec;
+      --ink: #1d2b3a;
+      --muted: #55606e;
+      --rule: rgba(23, 54, 93, 0.22);
+      --watch: #a8730c;
+      --done: #2f7d3a;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 Georgia, 'Times New Roman', serif; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+    a { color: var(--navy); }
+    h1, h2, h3, h4 { color: var(--navy); line-height: 1.25; }
+    h1 { margin: 0; font-size: 1.75rem; color: #fff; }
+    h2 { margin: 40px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--navy); font-size: 1.4rem; }
+    h3 { margin: 26px 0 6px; font-size: 1.12rem; }
+    h4 { margin: 18px 0 6px; font-size: 1rem; }
+    p { margin: 0 0 10px; }
+    ul, ol { margin: 0 0 10px; padding-left: 1.3em; }
+    li { margin-bottom: 4px; }
+    .small { font-size: 0.9rem; color: var(--muted); }
+
+    header { background: var(--navy); color: #fff; padding: 14px 0 18px; }
+    header a { color: #fff; }
+    header .back { display: inline-block; margin-bottom: 10px; font-size: 0.9rem; }
+    header .kicker { font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+    header .sub { margin-top: 6px; opacity: 0.9; }
+
+    .box { margin: 18px 0; padding: 14px 16px; background: var(--card); border: 1px solid var(--rule); border-radius: 6px; }
+    .box h3 { margin-top: 0; }
+    .finding { border-left: 4px solid var(--watch); }
+
+    .phases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 4px; text-align: center; }
+    .phase { padding: 8px 4px; border-radius: 5px; color: #fff; }
+    .phase b { display: block; font-size: 1.5rem; line-height: 1.1; }
+    .phase span { font-size: 0.85rem; }
+    .ashore { background: var(--navy); }
+    .atsea { background: var(--sea); }
+    .bands { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: 0.85rem; text-align: center; color: var(--muted); }
+    .bands div { grid-column: span 2; padding-top: 4px; border-top: 2px solid currentColor; }
+    .bands .who { border-top: none; padding-top: 0; color: var(--ink); }
+    .loop { margin-top: 6px; font-size: 0.85rem; color: var(--muted); text-align: center; }
+
+    nav ol { list-style: none; padding-left: 0; }
+    nav ol ol { padding-left: 1.4em; margin-top: 4px; }
+    nav li { margin-bottom: 3px; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 0.95rem; }
+    th, td { padding: 7px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    th { color: var(--navy); }
+    td:first-child { width: 30%; }
+    .tag { display: inline-block; padding: 0 6px; border-radius: 3px; background: #f1e2bd; color: #6b4a07; font-size: 0.8rem; white-space: nowrap; }
+
+    .needs { list-style: none; padding-left: 0; }
+    .needs > li { display: grid; grid-template-columns: 7em 1fr; gap: 0.6em; margin-bottom: 12px; }
+    .state { display: inline-block; align-self: start; margin-top: 3px; padding: 1px 6px; border-radius: 3px; font-size: 0.78rem; text-align: center; }
+    .state.done { background: var(--done); color: #fff; }
+    .state.decide { background: #f1e2bd; color: #6b4a07; }
+    .state.coming { border: 1px solid var(--navy); color: var(--navy); }
+    .state.out { background: #e3e5e8; color: var(--muted); }
+    .legend .state { margin: 0 2px; }
+    .decision { margin-top: 5px; padding: 4px 10px; border-left: 3px solid var(--watch); background: #f8ecd0; font-size: 0.95rem; }
+
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 12px 0; }
+    .card { padding: 12px 14px; background: var(--card); border: 1px solid var(--rule); border-top: 4px solid var(--navy); border-radius: 6px; }
+    .card.atsea-card { border-top-color: var(--sea); }
+    .card h3 { margin: 0 0 2px; }
+    .card .q { margin-bottom: 6px; font-style: italic; color: var(--muted); }
+    .card .ex { margin-top: 6px; font-size: 0.92rem; }
+
+    footer { margin: 40px 0 0; padding: 14px 0 24px; border-top: 1px solid var(--rule); font-size: 0.85rem; color: var(--muted); }
+    .sources li { font-size: 0.9rem; }
+
+    @media (max-width: 600px) {
+      body { font-size: 16px; }
+      .cards { grid-template-columns: 1fr; }
+      td:first-child { width: 36%; }
+      .phase b { font-size: 1.25rem; }
+      .phase span, .bands { font-size: 0.75rem; }
+      .needs > li { grid-template-columns: 1fr; gap: 3px; }
+      .needs .state { justify-self: start; }
+    }
+    @media print {
+      @page { size: A4; margin: 14mm; }
+      body { background: #fff; font-size: 11pt; }
+      header, .phase, .state { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      header .back { display: none; }
+      .box, .card, tr, .phases, .needs > li { break-inside: avoid; }
+      h2, h3, h4 { break-after: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="back" href="index.html#voyage">← La carte du voyage</a>
+      <div class="kicker">NJORD — Way to Norway 2027</div>
+      <h1>Préparer le voyage</h1>
+      <div class="sub">Ce que la préparation demande, ce que le logiciel couvre, et la méthode APEM</div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="box">
+      <h3>APEM en bref</h3>
+      <p>APEM est la méthode de préparation de navigation de l'Organisation maritime internationale, que la RYA, la
+        fédération britannique de voile, enseigne aux plaisanciers. Elle tient en quatre temps : deux à terre, avant de
+        partir, deux en mer. La partie 2 la détaille.</p>
+      <div class="phases" role="img" aria-label="Évaluer et Planifier à terre, avec le logiciel NJORD ; Exécuter et Surveiller en mer, avec les applis de navigation">
+        <div class="phase ashore"><b>A</b><span>Évaluer</span></div>
+        <div class="phase ashore"><b>P</b><span>Planifier</span></div>
+        <div class="phase atsea"><b>E</b><span>Exécuter</span></div>
+        <div class="phase atsea"><b>M</b><span>Surveiller</span></div>
+      </div>
+      <div class="bands">
+        <div>à terre, avant</div>
+        <div>en mer</div>
+        <div class="who">le logiciel NJORD, des mois avant</div>
+        <div class="who">Navionics, Windy, l'almanach</div>
+      </div>
+      <div class="loop">↺ après chaque étape, le retour d'expérience nourrit la préparation des suivantes</div>
+    </div>
+
+    <nav class="box" aria-label="Sommaire">
+      <h3>Sommaire</h3>
+      <ol>
+        <li><a href="#partie-1">1. Ce que la méthode dit de notre voyage</a>
+          <ol>
+            <li><a href="#etude">1.1 Le voyage au crible d'APEM</a></li>
+            <li><a href="#couverture">1.2 Ce que le logiciel couvre, et ce qu'il faut décider</a></li>
+          </ol>
+        </li>
+        <li><a href="#partie-2">2. APEM, mini-cours</a>
+          <ol>
+            <li><a href="#origine">2.1 D'où vient la méthode</a></li>
+            <li><a href="#temps">2.2 Les quatre temps</a></li>
+            <li><a href="#limites">2.3 Ses limites pour un voyage de quatre mois</a></li>
+          </ol>
+        </li>
+        <li><a href="#sources">Sources</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="partie-1">1. Ce que la méthode dit de notre voyage</h2>
+
+    <h3 id="etude">1.1 Le voyage au crible d'APEM</h3>
+    <p>Préparer un voyage des mois à l'avance, c'est surtout faire le premier temps d'APEM : <b>évaluer</b>. Sans
+      météo réelle, il ne s'agit pas de fixer des heures, mais de savoir où le voyage est incertain et ce qu'on fera
+      alors. C'est ce qui rassure, à condition d'être honnête : le logiciel doit aussi dire où ce n'est pas rassurant.</p>
+    <p>Le voyage : 14 étapes, environ 3 400 NM, du 1<sup>er</sup> avril au 15 juillet 2027. Les étapes sont bout à
+      bout, on repart le lendemain de l'arrivée, avec une relève d'équipage possible à chaque escale.</p>
+
+    <p><b>Évaluer : ce qui rend chaque tronçon incertain</b> <span class="small">(un numéro ouvre l'étape sur la
+      carte)</span></p>
+    <table>
+      <thead><tr><th>Tronçon</th><th>Ce qui est incertain, et où l'on attend</th></tr></thead>
+      <tbody>
+        <tr><td><a href="index.html#etape-01">01</a>–<a href="index.html#etape-02">02</a> Méditerranée<br><span class="small">1–15 avril</span></td>
+          <td>Marée négligeable. Rien de particulier relevé dans cette étude.</td></tr>
+        <tr><td><a href="index.html#etape-03">03</a> Détroit de Gibraltar<br><span class="small">16–23 avril</span></td>
+          <td>Vers l'ouest, le courant de surface porte à l'est (1 à 2 nœuds) et les fenêtres de courant sont plus
+            courtes que dans l'autre sens ; le Poniente, vent d'ouest, est de face ; trafic intense. On attend sa
+            fenêtre à Gibraltar, La Línea ou Ceuta. Orques : point chaud. <span class="tag">à revérifier</span></td></tr>
+        <tr><td><a href="index.html#etape-04">04</a>–<a href="index.html#etape-05">05</a> Portugal<br><span class="small">24 avril–8 mai</span></td>
+          <td>Remontée au près contre l'alizé portugais, de nord, d'avril à septembre, qui forcit en fin de matinée,
+            avec un courant portant au sud jusqu'à 1 nœud. On part à l'aube, ou l'on s'écarte au large. Orques :
+            surtout d'avril à septembre ; deux voiliers coulés au large du Portugal à l'automne 2025.
+            <span class="tag">à revérifier</span></td></tr>
+        <tr><td><a href="index.html#etape-06">06</a> Golfe de Gascogne<br><span class="small">9–17 mai</span></td>
+          <td>Il faut une fenêtre de 4 à 5 jours, plus rare en mai qu'en juin-juillet ; on l'attend à La Corogne. Les
+            fichiers météo grossiers sous-estiment souvent l'état de la mer.</td></tr>
+        <tr><td><a href="index.html#etape-07">07</a>–<a href="index.html#etape-10">10</a> Manche, mer du Nord, Wadden, Elbe<br><span class="small">18 mai–10 juin</span></td>
+          <td>C'est là que la marée compte : courants forts, bancs. Rails de trafic, approche de Rotterdam à éviter,
+            parcs éoliens au large d'IJmuiden interdits à la traversée de nuit. Par les canaux néerlandais, la route
+            sans démâtage n'était pas entièrement praticable en 2026. <span class="tag">à revérifier</span></td></tr>
+        <tr><td><a href="index.html#etape-11">11</a> Canal de Kiel<br><span class="small">11–15 juin</span></td>
+          <td>Écluses et horaires ; peu d'aléa météo.</td></tr>
+        <tr><td><a href="index.html#etape-12">12</a>–<a href="index.html#etape-14">14</a> Danemark, Skagerrak, Norvège<br><span class="small">16 juin–15 juillet</span></td>
+          <td>Traversée du Skagerrak à prendre par vent modéré ; vents d'ouest variables au passage des dépressions ;
+            brouillard par vent de sud.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box finding">
+      <p><b>L'aléa principal est l'attente au port, pas la durée en mer.</b> La marge que donne le logiciel (les jours
+        prévus moins le temps à la voile) ne compte que le temps en mer. L'<a href="index.html#etape-05">étape 05</a> a
+        10 jours pour environ 5 jours de mer en route directe ; mais si le vent du nord souffle fort une semaine, on
+        reste à quai.</p>
+      <p><b>Le calendrier est la principale source de pression.</b> Un dicton de croisière veut que la chose la plus
+        dangereuse à bord soit le calendrier : c'est lui qui pousse à partir quand il ne faudrait pas. Ici, étapes bout
+        à bout, relèves et billets d'avion la créent.</p>
+    </div>
+
+    <p><b>Planifier, à cet horizon :</b> ce qui peut se décider dès maintenant.</p>
+    <ul>
+      <li><b>Les escales comme des zones</b> : une courte liste de deux ou trois ports réels, dont un de référence pour
+        les calculs, et une date à laquelle on fixe le port. L'équipage vise l'aéroport ou la gare de la zone, pas le
+        ponton. Le tableur le fait déjà pour certaines (« port à préciser sur la côte est anglaise », « port danois à
+        définir selon météo », « Cuxhaven / Brunsbüttel selon organisation du canal »).</li>
+      <li><b>Les abris de repli</b> en route, surtout sur les tronçons exposés.</li>
+      <li><b>La marée là où elle compte</b> (Gibraltar, Manche, Wadden, Elbe), rattachée à un lieu, jamais une date
+        seule.</li>
+      <li><b>L'autonomie</b> : l'étape la plus longue sans escale tient-elle en eau, vivres, gasoil et énergie ?</li>
+    </ul>
+    <p><b>Exécuter et surveiller</b> se jouent en mer, avec les outils du capitaine : heure de départ, heures de
+      marée, GO / NO GO, heure d'arrivée. Le logiciel s'arrête là et leur passe les parcours (GPX, KML).</p>
+
+    <h3 id="couverture">1.2 Ce que le logiciel couvre, et ce qu'il faut décider</h3>
+    <p class="small legend">Rangé selon les temps d'APEM. Chaque besoin a son état :
+      <span class="state done">fait</span> <span class="state decide">à décider</span> (attend une décision du
+      capitaine) <span class="state coming">à venir</span> (décidé, à développer)
+      <span class="state out">hors du logiciel</span>.</p>
+
+    <h4>A — Évaluer</h4>
+    <ul class="needs">
+      <li><span class="state done">fait</span><div><b>Les parcours et leurs distances</b> : le parcours auto, calculé par
+        mer entre les positions du tableur, et un parcours manuel par des passages posés à la main ; la distance du
+        tableur à côté des distances calculées. <a href="index.html#voyage">Le voyage</a></div></li>
+      <li><span class="state done">fait</span><div><b>Le vent aux dates de chaque étape</b>, de 2016 à 2025, vu du bateau :
+        part du temps au près, au travers, au portant, en petit temps, à force 6 et 7 et plus ; écart d'une année à
+        l'autre.</div></li>
+      <li><span class="state done">fait</span><div><b>La durée et la marge</b> : temps en tirant des bords à la vitesse
+        moyenne, et jours prévus moins ce temps. Ne compte pas l'attente au port (plus bas).</div></li>
+      <li><span class="state decide">à décider</span><div><b>Les points de vigilance, placés et sourcés</b> : dangers,
+        courants et marée là où ils comptent, trafic, zones d'orques, abris ; le fait propre à un lieu, avec sa source,
+        et « à revérifier » quand il change. Pas les consignes valables partout : elles ne décident rien. Du contenu
+        plus que du code.
+        <div class="decision"><b>À décider :</b> quels lieux annoter en premier, où la marée doit figurer, et qui écrit.
+          Proposition : une liste sourcée par étape, que le capitaine corrige.</div></div></li>
+      <li><span class="state decide">à décider</span><div><b>Une marge qui compte l'attente</b> : pour les étapes
+        critiques (03, 05, 06, Skagerrak), combien de jours on aurait attendu une fenêtre à ces dates, de 2016 à 2025,
+        avec les archives de vent déjà utilisées. Limite : le vent seul, pas l'état de la mer.
+        <div class="decision"><b>À décider :</b> ce qu'est une fenêtre pour ce bateau et cet équipage : vent maximal,
+          direction, durée.</div></div></li>
+      <li><span class="state decide">à décider</span><div><b>L'autonomie</b> : l'étape la plus longue sans escale
+        tient-elle en eau, vivres, gasoil et énergie ?
+        <div class="decision"><b>À décider :</b> les chiffres du bateau : eau, gasoil, batteries, consommation par
+          personne et par jour. Le logiciel n'en invente aucun.</div></div></li>
+    </ul>
+
+    <h4>P — Planifier, à l'échelle du voyage</h4>
+    <ul class="needs">
+      <li><span class="state done">fait</span><div><b>Une variante de route par étape</b> : le parcours manuel, comparé au
+        parcours auto sur la distance, le vent et la marge, enregistré dans le fichier des parcours.</div></li>
+      <li><span class="state decide">à décider</span><div><b>Les escales en zones, et les abris de repli</b> : pour chaque
+        escale, les ports candidats, celui de référence pour les calculs, la date à laquelle on fixe ; les abris en
+        route.
+        <div class="decision"><b>À décider :</b> les ports candidats de chaque escale, et combien de jours avant le
+          départ on fixe le port.</div></div></li>
+    </ul>
+
+    <h4>E, M — Exécuter et surveiller, en mer</h4>
+    <ul class="needs">
+      <li><span class="state done">fait</span><div><b>Passer les parcours aux applis de navigation</b> : GPX pour Navionics
+        ou un traceur, KML pour Google Earth, lien vers le planificateur de route de Windy.
+        <span class="small">Dans Navionics, seuls le départ et l'arrivée apparaissent pour l'instant.</span></div></li>
+      <li><span class="state out">hors du logiciel</span><div><b>Le jour du départ</b> : heure de départ, heures et
+        hauteurs de marée, GO / NO GO, heure d'arrivée, briefing. Ils se décident la veille avec la vraie météo, dans
+        Navionics, Windy ou l'almanach.</div></li>
+    </ul>
+
+    <h2 id="partie-2">2. APEM, mini-cours</h2>
+
+    <h3 id="origine">2.1 D'où vient la méthode</h3>
+    <p>L'Organisation maritime internationale l'a posée en 1999 (résolution A.893(21), lignes directrices pour la
+      préparation des voyages), d'abord pour les navires de commerce. La convention SOLAS, chapitre V, fait de la
+      préparation de la navigation une obligation pour qui prend la mer, plaisance comprise, rappelle la RYA, qui
+      l'enseigne sous le nom d'APEM : <i>Appraisal, Planning, Execution, Monitoring</i>. C'est un cadre de bon sens,
+      proche de « prévoir, faire, vérifier, corriger ».</p>
+
+    <h3 id="temps">2.2 Les quatre temps</h3>
+    <p class="small">Chaque temps illustré par l'<a href="index.html#etape-03">étape 03</a>, Carthagène → Cadix,
+      d'après sa fiche d'exemple.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>A — Évaluer</h3>
+        <div class="q">Est-ce faisable, et qu'est-ce qui peut mal tourner ?</div>
+        <p>Rassembler l'information : cartes, guide nautique, marées et courants, climat de la saison, avis aux
+          navigateurs, état du bateau, expérience de l'équipage. Repérer les dangers, les abris, les ports de repli.</p>
+        <div class="ex"><b>Étape 03 :</b> courant contraire dans le détroit, Poniente de face, trafic intense, orques ;
+          attente possible à Gibraltar, La Línea ou Ceuta.</div>
+      </div>
+      <div class="card">
+        <h3>P — Planifier</h3>
+        <div class="q">Par où, quand, et que fait-on si… ?</div>
+        <p>Tracer la route et ses points de passage, garder ses distances aux dangers, choisir l'heure de passage aux
+          endroits critiques, fixer les points de décision et les plans de repli.</p>
+        <div class="ex"><b>Étape 03 :</b> départ calculé à rebours de l'heure de passage du détroit ; A route directe,
+          B départ retardé, C on reste au port.</div>
+      </div>
+      <div class="card atsea-card">
+        <h3>E — Exécuter</h3>
+        <div class="q">On part ?</div>
+        <p>La veille ou le jour même, avec la météo réelle : confirmer ou adapter le plan, décider GO / NO GO,
+          prévenir à terre.</p>
+        <div class="ex"><b>Étape 03 :</b> NO GO si le Poniente souffle fort dans le détroit, ou si l'arrivée tombe de
+          nuit.</div>
+      </div>
+      <div class="card atsea-card">
+        <h3>M — Surveiller</h3>
+        <div class="q">Est-on toujours dans le plan ?</div>
+        <p>En mer : position, écart à la route, vent et courant réels contre prévus. Aux points de décision,
+          continuer, attendre ou se dérouter vers un abri.</p>
+        <div class="ex"><b>Étape 03 :</b> au large de Tarifa, le courant tourne-t-il comme prévu ? Sinon, attendre à
+          l'abri plutôt que forcer.</div>
+      </div>
+    </div>
+    <p><b>Et après : le retour d'expérience.</b> Ce qui a marché ou non (météo, courant, approche, formalités) sert à
+      préparer l'étape suivante. La fiche d'exemple de l'étape 03 lui réserve une rubrique.</p>
+
+    <h3 id="limites">2.3 Ses limites pour un voyage de quatre mois</h3>
+    <ul>
+      <li><b>Elle est pensée pour une traversée</b> de quelques heures ou de quelques jours, préparée la veille avec
+        la vraie météo. Des mois avant, il n'y a pas de prévision : la statistique, le vent des dix dernières années,
+        la remplace.</li>
+      <li><b>Deux temps sur quatre se jouent en mer.</b> Pour le logiciel, APEM sert donc surtout à tracer une
+        frontière : évaluer et prévoir les replis à l'échelle du voyage ; le reste, étape par étape, revient au
+        capitaine et à ses outils.</li>
+      <li><b>Elle ne parle ni de relèves ni de billets d'avion</b>, qui sont pourtant la principale source de pression
+        de ce voyage.</li>
+    </ul>
+
+    <h2 id="sources">Sources</h2>
+    <p class="small">Surtout des magazines et des forums de voile. Les faits qui changent (orques, canaux) sont à
+      revérifier avant le départ ; les guides nautiques et le capitaine font foi.</p>
+    <ul class="sources">
+      <li>Méthode : <a href="https://wikipedia.com/wiki/Passage_planning">Passage planning (Wikipedia)</a> ·
+        <a href="https://www.rya.org.uk/water-safety/passage-planning-and-navigation/passage-planning/">RYA, Passage planning</a> ·
+        <a href="https://www.firstclasssailing.com/blog/?p=7060">First Class Sailing, APEM</a></li>
+      <li>Calendrier : <a href="https://soundingsonline.com/?p=8841">Soundings</a> ·
+        <a href="https://boattest.com/article/whose-idea-was-why-planning-doesnt-always-pay.md">BoatTest</a></li>
+      <li>Gibraltar : <a href="https://blog.noforeignland.com/transiting-the-straits-of-gibraltar/">noforeignland</a> ·
+        <a href="https://www.yacht.de/reisen-chartern/weltweit/revier-gibraltar-etappenziel-mit-geschichte-zwischen-mittelmeer-und-atlantik/">YACHT, Revier Gibraltar</a></li>
+      <li>Portugal : <a href="https://www.noonsite.com/place/portugal/view/weather">noonsite</a> ·
+        <a href="https://Www.wikipedia.org/wiki/Nortada">Nortada (Wikipedia)</a> ·
+        <a href="https://www.pressreader.com/uk/yachting-world/20181001/281852939442505">Yachting World</a> ·
+        <a href="https://riggingdoctor.com/life-aboard/2020/2/1/transatlantic-azores-to-portugal-review">Rigging Doctor</a></li>
+      <li>Gascogne : <a href="https://www.yachtingworld.com/expert-sailing-techniques/masterclass-crossing-the-bay-of-biscay-135901">Yachting World</a> ·
+        <a href="https://forums.ybw.com/threads/best-time-to-cross-biscay.318951">YBW</a></li>
+      <li>Orques : <a href="https://www.theca.org.uk/node/64925">Cruising Association, 2025</a> ·
+        <a href="https://news.mongabay.com/short-article/2025/09/iberian-orcas-sink-sailboat-in-latest-ramming-game-in-portugal/">Mongabay</a> ·
+        <a href="https://en.wikipedia.org/wiki/Iberian_orca_attacks">Wikipedia</a></li>
+      <li>Mer du Nord : <a href="https://www.yachtingmonthly.com/cruising/cruising-guides/sailing-holland-a-cruising-itinerary-just-for-you-88404">Yachting Monthly</a> ·
+        <a href="https://www.yacht.de/en/reisen-chartern/niederlande-und-belgien/niederlande-stehende-mast-route-2026-nicht-durchgaengig-befahrbar/">YACHT, 2026</a></li>
+      <li>Norvège : <a href="https://www.yachtingworld.com/?p=132308">Yachting World</a> ·
+        <a href="https://www.pressreader.com/uk/yachting-monthly/20191001/281625306981943">Yachting Monthly</a></li>
+    </ul>
+  </main>
+
+  <footer>
+    <div class="wrap">NJORD — Way to Norway 2027 · mis à jour le 24 novembre 2026, préparé avec Claude (IA) à partir
+      des sources citées · <a href="index.html#voyage">la carte du voyage</a></div>
+  </footer>
+</body>
+</html>
