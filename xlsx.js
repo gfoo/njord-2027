@@ -1,7 +1,7 @@
 // Reading and writing .xlsx files in the browser without a library: an .xlsx is a zip of XML parts,
 // and the browser inflates and deflates zip entries itself (DecompressionStream). Only what the
-// routes file needs: a sheet's cells, values and styles, and a sheet's cells written again, the rest
-// of the file (column widths, frozen rows, styles, other sheets) left as it was.
+// routes file needs: a sheet's cells, values and styles, a sheet's cells written again, the rest
+// of the file (column widths, frozen rows, styles, other sheets) left as it was, and a sheet added.
 
 const XLSX_RELATIONS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 // Excel counts days from 1899-12-30.
@@ -176,6 +176,40 @@ function writeSheet(book, name, rows) {
     .replace(/<sheetData\s*\/>|<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${data}</sheetData>`)
     .replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:${columnName(width - 1)}${Math.max(1, rows.length)}"/>`);
   book.files.set(path, new TextEncoder().encode(text));
+}
+
+// A sheet added after the others, empty but for its column widths, its frozen header row and, under
+// the header, the lists some columns choose from (lists: column index → values): a routes file
+// written before a sheet existed gains it when the map writes the next version.
+function addSheet(book, name, widths, lists = {}) {
+  const text = path => new TextDecoder().decode(book.files.get(path));
+  const set = (path, value) => book.files.set(path, new TextEncoder().encode(value));
+  let number = 1;
+  while (book.files.has(`xl/worksheets/sheet${number}.xml`)) number++;
+  const path = `xl/worksheets/sheet${number}.xml`;
+  const workbook = text('xl/workbook.xml');
+  const sheetId = Math.max(0, ...[...workbook.matchAll(/sheetId="(\d+)"/g)].map(match => Number(match[1]))) + 1;
+  const relations = text('xl/_rels/workbook.xml.rels');
+  let id = 1;
+  while (relations.includes(`Id="rId${id}"`)) id++;
+  set('xl/workbook.xml', workbook.replace('</sheets>',
+    `<sheet xmlns:r="${XLSX_RELATIONS}" name="${escapeXml(name)}" sheetId="${sheetId}" state="visible" r:id="rId${id}"/></sheets>`));
+  set('xl/_rels/workbook.xml.rels', relations.replace('</Relationships>',
+    `<Relationship Type="${XLSX_RELATIONS}/worksheet" Target="/${path}" Id="rId${id}"/></Relationships>`));
+  set('[Content_Types].xml', text('[Content_Types].xml').replace('</Types>',
+    `<Override PartName="/${path}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`));
+  const columns = widths.map((width, i) => `<col width="${width}" customWidth="1" min="${i + 1}" max="${i + 1}"/>`).join('');
+  const validations = Object.entries(lists).map(([index, values]) => {
+    const letter = columnName(Number(index));
+    return `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${letter}2:${letter}1048576">` +
+      `<formula1>"${escapeXml(values.join(','))}"</formula1></dataValidation>`;
+  });
+  set(path, `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0">` +
+    `<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
+    `<cols>${columns}</cols><sheetData/>` +
+    (validations.length ? `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>` : '') +
+    `</worksheet>`);
+  book.sheets.set(name, path);
 }
 
 const excelDate = isoDate => (Date.parse(`${isoDate}T00:00:00Z`) - XLSX_EPOCH) / 86_400_000;

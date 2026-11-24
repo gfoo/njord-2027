@@ -7,9 +7,28 @@ const ROUTE_MODES = { sea: 'mer', straight: 'ligne droite' };
 const ROUTES_FILE_NAME = /^NJORD_2027_parcours_v(\d{2})\.xlsx$/;
 const WIND_SHARES = ['close', 'reach', 'run', 'light', 'strong', 'gale'];
 const SETTING_ROWS = { speed: 'Vitesse moyenne (nd)', pointing: 'Angle de remontée au vent (°)' };
+// The points of vigilance: what to watch at a place of a leg, typed by hand, every cell of them.
+const WATCH_SHEET = 'Points';
+const WATCH_COLUMNS = ['Étape', 'Position', 'Type', 'Niveau', 'Titre', 'Note', 'Source', 'À revérifier'];
+const WATCH_WIDTHS = [7, 22, 18, 11, 34, 70, 50, 13];
+// The map gives each type its icon and each level its colour and shape. An empty cell, as a row
+// added by hand may leave it, takes the default.
+const WATCH_TYPES = ['Courant', 'Haut-fond', 'Météo locale', 'Trafic', 'Zone réglementée', 'Écluse ou pont',
+  'Port', 'Abri', 'Formalités', 'Autre'];
+const WATCH_LEVELS = ['Danger', 'Attention', 'Info'];
+const WATCH_DEFAULTS = { type: 'Autre', level: 'Attention' };
 
 const routesFileName = version => `NJORD_2027_parcours_v${String(version).padStart(2, '0')}.xlsx`;
 const formatPoints = points => points.map(([lat, lon]) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`).join('; ');
+
+// One of the values a column allows, whatever its case; anything else is refused, listing them.
+function watchChoice(value, column, choices, fallback) {
+  const text = String(value ?? '').trim();
+  if (!text) return fallback;
+  const found = choices.find(choice => choice.toLowerCase() === text.toLowerCase());
+  if (!found) throw new Error(`${column} « ${text} » inconnu, attendu : ${choices.join(', ')}`);
+  return found;
+}
 
 // « lat, lon; lat, lon », as the map writes it; anything else is refused, naming the text.
 function parsePoints(text) {
@@ -121,6 +140,28 @@ async function readRoutesFile(buffer) {
       errors.push(`${where} : ${error.message}`);
     }
   }
+  // A file written before the points existed has no sheet for them: it has none.
+  const watch = [];
+  for (const { values } of records(WATCH_SHEET)) {
+    const leg = legByNumber.get(legNumber(values['Étape']));
+    if (!leg) continue;
+    try {
+      const [at, ...more] = parsePoints(values['Position']);
+      if (!at || more.length) throw new Error(`« ${values['Position'] ?? ''} » n'est pas une position`);
+      watch.push({
+        leg: leg['Étape'],
+        at,
+        type: watchChoice(values['Type'], 'type', WATCH_TYPES, WATCH_DEFAULTS.type),
+        level: watchChoice(values['Niveau'], 'niveau', WATCH_LEVELS, WATCH_DEFAULTS.level),
+        title: String(values['Titre'] ?? '').trim(),
+        note: String(values['Note'] ?? '').trim(),
+        source: String(values['Source'] ?? '').trim(),
+        recheck: String(values['À revérifier'] ?? '').trim().toLowerCase() === 'oui',
+      });
+    } catch (error) {
+      errors.push(`${WATCH_SHEET}, étape ${leg['Étape']} : ${error.message}`);
+    }
+  }
   if (errors.length) throw new Error(errors.join(' ; '));
 
   // A wind computed for other dates, ends or passages than the route's own is left out: it would
@@ -142,6 +183,7 @@ async function readRoutesFile(buffer) {
     workbook: settings['Tableur source'] ?? '',
     legs,
     routes,
+    watch,
     speed: Number(settings[SETTING_ROWS.speed]) || 5,
     pointing: Number(settings[SETTING_ROWS.pointing]) || 45,
     wind: {
@@ -197,11 +239,12 @@ function windRows(file, route, styles) {
   };
 }
 
-// The next version: the file as it was, its routes, their wind and the settings replaced. routes:
-// { leg, name, mode, passages, path, nm, stats } in the legs' order, auto before manual.
-async function writeRoutesFile(file, { routes, speed, pointing }) {
+// The next version: the file as it was, its routes, their wind, its points of vigilance and the
+// settings replaced. routes: { leg, name, mode, passages, path, nm, stats } in the legs' order, auto
+// before manual; watch: { leg, at, type, level, title, note, source, recheck } in the legs' order.
+async function writeRoutesFile(file, { routes, speed, pointing, watch }) {
   // A copy of the parts: the file stays as it was read if anything below fails.
-  const book = { ...file.book, files: new Map(file.book.files) };
+  const book = { ...file.book, files: new Map(file.book.files), sheets: new Map(file.book.sheets) };
   const name = routesFileName(file.version + 1);
   const parcours = readSheet(book, 'Parcours');
   const wind = readSheet(book, 'Vent');
@@ -215,6 +258,12 @@ async function writeRoutesFile(file, { routes, speed, pointing }) {
   const sailed = routes.filter(route => route.stats).map(route => route.stats.rows ?? windRows(file, route, styles));
   writeSheet(book, 'Vent', [wind[0], ...sailed.map(rows => rows.wind)]);
   writeSheet(book, 'Vent détail', [detail[0], ...sailed.map(rows => rows.detail)]);
+  if (!book.sheets.has(WATCH_SHEET)) addSheet(book, WATCH_SHEET, WATCH_WIDTHS, { 2: WATCH_TYPES, 3: WATCH_LEVELS });
+  const [header, plain] = [parcours[0][0]?.style ?? null, styles.routes[0]];
+  writeSheet(book, WATCH_SHEET, [WATCH_COLUMNS.map(value => ({ value, style: header })),
+    ...watch.map(point => [point.leg, formatPoints([point.at]), point.type, point.level, point.title, point.note, point.source,
+      point.recheck ? 'oui' : '']
+      .map((value, i) => ({ value, style: i ? typed : plain })))]);
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ` +
     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;

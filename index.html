@@ -15,7 +15,7 @@
   <script src="sea-route.js"></script>
   <script src="route-wind.js"></script>
   <style>
-    :root { --route: #1d4e89; --trial: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; }
+    :root { --route: #1d4e89; --trial: #a855f7; --trial-text: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; --watch: #a8730c; --watch-text: #7a5205; --watch-danger: #d32f2f; --watch-warning: #fbc02d; --watch-info: #1565c0; --watch-ink: #1a1a1a; }
     html, body { height: 100%; margin: 0; }
     body { display: flex; flex-direction: column; font-family: system-ui, sans-serif; color: #1d2b3a; }
     button { font: inherit; }
@@ -53,7 +53,7 @@
     .method-link { margin-top: 6px; padding: 5px 8px; border-left: 3px solid var(--route); background: #f2f5f9; }
     .side .small { color: #666; font-size: 11px; }
     .side .credit { margin-top: 14px; color: #666; font-size: 11px; }
-    .manual-text { color: var(--trial); }
+    .manual-text { color: var(--trial-text); }
     .warning { color: var(--trial-land); }
 
     .pace { margin: 10px 0 4px; font-size: 12px; }
@@ -106,14 +106,14 @@
     .progress .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: #9dbbe0; transition: width 0.2s; }
     .progress .text { position: relative; display: block; padding: 3px 10px; text-align: center; }
     .progress.error { background: #fbe3e0; color: #8a1f14; }
-    .wind-manual, .trial button { padding: 3px 9px; border: 1px solid var(--trial); border-radius: 3px; background: #fff; color: var(--trial); font-size: 12px; cursor: pointer; }
+    .wind-manual, .trial button { padding: 3px 9px; border: 1px solid var(--trial-text); border-radius: 3px; background: #fff; color: var(--trial-text); font-size: 12px; cursor: pointer; }
 
     .leg-links .gpx { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
     .leg-links button { padding: 3px 9px; border: 1px solid var(--route); border-radius: 3px; background: #fff; color: var(--route); font-size: 12px; cursor: pointer; }
     .trial { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--trial); background: #faf6fc; }
-    .trial h3 { margin-top: 0; color: var(--trial); }
+    .trial h3 { margin-top: 0; color: var(--trial-text); }
     .trial .figures { margin: 6px 0; line-height: 1.5; }
-    .trial .figures b { color: var(--trial); }
+    .trial .figures b { color: var(--trial-text); }
     .trial ol { margin: 4px 0; padding-left: 22px; font-variant-numeric: tabular-nums; font-size: 12px; }
     .trial .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
@@ -123,11 +123,34 @@
     .legend .route { stroke: var(--route); stroke-width: 3; }
     .legend .manual { stroke: var(--trial); stroke-width: 3; }
     .legend .port { fill: var(--route); stroke: var(--route); stroke-width: 2; }
+    .legend .watch-legend { flex-wrap: wrap; gap: 4px 10px; }
+    .legend .watch-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .legend .watch-legend svg { width: 16px; height: 16px; }
     .legend [hidden] { display: none; }
     .port-label { padding: 0 4px; border: none; background: none; box-shadow: none; color: #1d2b3a; font-weight: 600; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; }
     .port-label::before { display: none; }
     .leaflet-container.trial-mode { cursor: crosshair; }
     .trial-point { box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; background: var(--trial); box-shadow: 0 0 0 1px var(--trial); cursor: grab; }
+    .watch-point { cursor: pointer; }
+    .watch-point svg, .watch-mark svg { display: block; }
+    /* The halo follows the sign's shape; dark, since a yellow one would vanish around a warning. */
+    .watch-point.open { cursor: grab; filter: drop-shadow(0 0 1.5px #1a1a1a) drop-shadow(0 0 2.5px #1a1a1a); }
+    .watch { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--watch); background: #fbf5e8; }
+    .watch h3 { margin-top: 0; color: var(--watch-text); }
+    .watch ol { margin: 6px 0; padding: 0; list-style: none; }
+    .watch li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; margin-bottom: 10px; }
+    .watch .watch-mark { display: flex; justify-content: center; }
+    .watch .watch-title { padding: 0; border: none; background: none; color: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+    .watch .watch-title:hover { text-decoration: underline; }
+    .watch-note { white-space: pre-line; }
+    .watch .tag, .leaflet-popup .tag { display: inline-block; margin-top: 2px; padding: 0 5px; border: 1px solid var(--watch); border-radius: 3px; color: var(--watch-text); font-size: 11px; }
+    .watch .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .watch .actions button { padding: 3px 9px; border: 1px solid var(--watch); border-radius: 3px; background: #fff; color: var(--watch-text); font-size: 12px; cursor: pointer; }
+    .watch-form label { display: block; margin-top: 6px; font-size: 12px; }
+    .watch-form input[type="text"], .watch-form textarea { box-sizing: border-box; width: 100%; margin-top: 2px; font: inherit; font-size: 13px; }
+    .watch-form .check { display: flex; gap: 6px; align-items: baseline; }
+    .watch-form .kinds { display: flex; flex-wrap: wrap; gap: 0 10px; }
+    .watch-form select { display: block; margin-top: 2px; font: inherit; font-size: 13px; }
     .leg-number {
       display: flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box;
       width: 22px; height: 22px; border: 2px solid var(--route); border-radius: 50%;
@@ -158,13 +181,63 @@
     // Written by ./update.sh beside the site, with the coast mask it goes with.
     const SITE_FILE_URL = 'parcours.xlsx';
     const KEPT_FILE = 'routes-file';
-    const ROUTE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--route').trim();
-    const TRIAL_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--trial').trim();
+    const cssColor = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const ROUTE_COLOR = cssColor('--route');
+    const TRIAL_COLOR = cssColor('--trial');
     const METERS_PER_NM = 1852;
+
+    // A point of vigilance's level draws its marker as the usual sign: a red triangle for a danger,
+    // the yellow triangle edged in black for a warning, a blue square for an information.
+    const WATCH_LOOK = {
+      Danger: { fill: cssColor('--watch-danger'), edge: cssColor('--watch-danger'), ink: '#fff', shape: 'triangle', size: 28 },
+      Attention: { fill: cssColor('--watch-warning'), edge: cssColor('--watch-ink'), ink: cssColor('--watch-ink'), shape: 'triangle', size: 28 },
+      Info: { fill: cssColor('--watch-info'), edge: cssColor('--watch-info'), ink: '#fff', shape: 'square', size: 22 },
+    };
+    // In a 24 × 24 box, with room around for the white ring; the icon goes where the shape is widest.
+    const WATCH_SHAPES = {
+      triangle: { draw: '<polygon points="12,2.6 22,20.8 2,20.8"/>', icon: 'translate(12 14.6) scale(0.72)' },
+      square: { draw: '<rect x="2.4" y="2.4" width="19.2" height="19.2" rx="2.5"/>', icon: 'translate(12 12)' },
+    };
+    // A type's icon, in a 12 × 12 box, stroked in the sign's ink.
+    const filled = 'fill="currentColor" stroke="none"';
+    const WATCH_ICONS = {
+      'Courant': `<path d="M1 7.5q2-3 4 0t4 0h1.5M8 5l2.5 2.5L8 10"/>`,
+      // The chart symbol of a rock awash.
+      'Haut-fond': `<path d="M6 2v8M2 6h8"/><g ${filled}><circle cx="2.6" cy="2.6" r="1"/><circle cx="9.4" cy="2.6" r="1"/>` +
+        `<circle cx="2.6" cy="9.4" r="1"/><circle cx="9.4" cy="9.4" r="1"/></g>`,
+      'Météo locale': `<path d="M1 4.5h6.5a1.8 1.8 0 1 0-1.8-1.8M1 7.5h8.2a1.8 1.8 0 1 1-1.8 1.8"/>`,
+      'Trafic': `<path d="M1.5 4h9M8.5 2l2 2-2 2M10.5 8.5h-9M3.5 6.5l-2 2 2 2"/>`,
+      'Zone réglementée': `<circle cx="6" cy="6" r="4.8"/><path d="M3.4 6h5.2"/>`,
+      'Écluse ou pont': `<path d="M0.8 4.5h10.4M2 4.5V10M10 4.5V10M2 10c0-3.6 8-3.6 8 0"/>`,
+      'Port': `<path d="M6 1.2V9"/><path ${filled} d="M6.6 1.8 10.4 8H6.6zM5.4 3.4 2 8h3.4zM1.2 9.2h9.6L9.2 11H2.8z"/>`,
+      'Abri': `<circle cx="6" cy="2.2" r="1.2"/><path d="M6 3.4v7.4M3.6 5.2h4.8M1.4 7.6c.6 2.2 2.4 3.2 4.6 3.2s4-1 4.6-3.2"/>`,
+      'Formalités': `<path d="M2.5 1.2V11"/><path ${filled} d="M2.5 1.6H10L8.4 4.2 10 6.8H2.5z"/>`,
+    };
+    // Without a type, the sign alone: « ! » in a triangle, « i » in a square.
+    const WATCH_PLAIN = {
+      triangle: `<path stroke-width="2.4" d="M6 1.5v5.6"/><circle ${filled} cx="6" cy="10.2" r="1.4"/>`,
+      square: `<circle ${filled} cx="6" cy="1.8" r="1.4"/><path stroke-width="2.4" d="M6 5v6"/>`,
+    };
+
+    // The marker of a point: its level's sign in a white ring that keeps it apart from the map, its
+    // type's icon inside, and a « ? » at the corner while it is to be checked again.
+    function watchMarkHtml({ type, level, recheck }, size = WATCH_LOOK[level].size) {
+      const { fill, edge, ink, shape } = WATCH_LOOK[level];
+      const { draw, icon } = WATCH_SHAPES[shape];
+      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" style="color:${ink}" stroke-linejoin="round">` +
+        `<g fill="#fff" stroke="#fff" stroke-width="4">${draw}</g><g fill="${fill}" stroke="${edge}" stroke-width="1.6">${draw}</g>` +
+        `<g transform="${icon} translate(-6 -6)" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">` +
+        `${WATCH_ICONS[type] ?? WATCH_PLAIN[shape]}</g>` +
+        (recheck ? `<circle cx="19.2" cy="4.8" r="4.8" fill="#fff" stroke="${cssColor('--watch-ink')}" stroke-width="1"/>` +
+          `<text x="19.2" y="7.9" text-anchor="middle" font-family="sans-serif" font-size="8.5" font-weight="700" ` +
+          `fill="${cssColor('--watch-ink')}">?</text>` : '') +
+        `</svg>`;
+    }
 
     // A canvas with a hit tolerance, so that the thin legs are easy to hover and click.
     const map = L.map('map', { renderer: L.canvas({ tolerance: 8 }), zoomSnap: 0.25 }).setView([48, 2], 4);
-    // Keyless tile services. The light gray keeps the routes readable, so it opens by default.
+    // Keyless tile services. The map opens on OpenStreetMap with the seamarks over it: coasts,
+    // harbours and buoys read as on a chart, and the routes stay readable on it.
     const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services';
     const BASE_MAPS = {
       'Esri gris clair': L.tileLayer(`${ESRI}/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`, {
@@ -186,14 +259,23 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">les contributeurs d’OpenStreetMap</a>',
       }),
     };
-    BASE_MAPS['Esri gris clair'].addTo(map);
-    L.control.layers(BASE_MAPS, null, { position: 'bottomright' }).addTo(map);
+    BASE_MAPS['OpenStreetMap'].addTo(map);
+    // Seamarks drawn over any base: lights, buoys, harbours, traffic separation schemes, from
+    // OpenStreetMap's data. A community map, uneven from place to place, not an official chart.
+    const SEAMARKS = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: 'Balisage &copy; <a href="https://www.openseamap.org/">OpenSeaMap</a> (CC BY-SA), ' +
+        'données &copy; <a href="https://www.openstreetmap.org/copyright">les contributeurs d’OpenStreetMap</a>',
+    });
+    SEAMARKS.addTo(map);
+    L.control.layers(BASE_MAPS, { 'Balisage OpenSeaMap (feux, bouées, rails de trafic)': SEAMARKS }, { position: 'bottomright' }).addTo(map);
 
     const side = document.querySelector('.side');
     const bar = document.querySelector('.bar');
-    // A highlighter band under the shown leg, kept below every line so that the leg stays drawn as
-    // it is. Its pale yellow is none of the wind's force colours.
-    const legHighlight = L.polyline([], { color: '#ffd84d', weight: 14, opacity: 0.75, interactive: false });
+    // A white edge under the shown leg's routes, kept below every line: the leg stands out on any
+    // base and its routes keep their own colours (a coloured band changed them, and a yellow one
+    // was the warning signs' colour).
+    const legHighlight = L.polyline([], { color: '#fff', weight: 8, opacity: 0.9, interactive: false });
     const drawn = L.layerGroup().addTo(map);
     const statsPoints = L.layerGroup();
     // A message shown or closed above the map changes its height: Leaflet has to be told.
@@ -205,7 +287,10 @@
       box.innerHTML =
         `<div><svg viewBox="0 0 28 12"><line class="route" x1="0" y1="6" x2="28" y2="6"/></svg><span class="route-label">Parcours auto</span></div>` +
         `<div class="trial-legend" hidden><svg viewBox="0 0 28 12"><line class="manual" x1="0" y1="6" x2="28" y2="6"/></svg>Parcours manuel : passages posés à la main</div>` +
-        `<div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port (cliquer : ses dates)</div>`;
+        `<div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port (cliquer : ses dates)</div>` +
+        `<div class="watch-legend" hidden>${WATCH_LEVELS.map(level =>
+          `<span>${watchMarkHtml({ type: 'Autre', level, recheck: false }, 16)}${level}</span>`).join('')}</div>` +
+        `<div class="watch-legend" hidden>Points de vigilance : cliquer pour le détail ; « ? », à revérifier</div>`;
       L.DomEvent.disableClickPropagation(box);
       return box;
     };
@@ -278,6 +363,14 @@
     let coastMask;
     let coast = null;
 
+    // The points of vigilance, by leg, in the file's order: what to watch at a place of the leg.
+    const watchPoints = new Map();
+    const watchMarkers = L.layerGroup().addTo(map);
+    const watchMarkerOf = new Map();
+    // The leg whose next click on the map places a point, and the point whose form is open.
+    let placing = null;
+    let watchOpen = null;
+
     function showMessage(text, kind = 'info') {
       const box = document.querySelector('.message');
       box.className = `message ${kind}`;
@@ -297,10 +390,22 @@
 
     const manualOf = parsed => Object.fromEntries(parsed.routes.filter(route => route.name === ROUTE_NAMES.manual)
       .map(route => [route.leg['Étape'], { mode: route.mode, passages: route.passages }]));
+    const watchOf = parsed => parsed.watch.reduce((byLeg, { leg, ...point }) =>
+      ({ ...byLeg, [leg]: [...(byLeg[leg] ?? []), point] }), {});
+    // A point as the file and the browser's storage keep it, without its place on the map.
+    const plainPoint = ({ at, type, level, title, note, source, recheck }) =>
+      ({ at: [at.lat, at.lng], type, level, title, note, source, recheck });
 
     // A file read, or the state the browser kept of one, replaces what the map shows.
-    function useFile(parsed, bytes, { origin, manual = manualOf(parsed), speed = parsed.speed, pointing = parsed.pointing, changed = false }) {
+    function useFile(parsed, bytes, { origin, manual = manualOf(parsed), watch = watchOf(parsed), speed = parsed.speed, pointing = parsed.pointing, changed = false }) {
       stopEditing();
+      closeWatch();
+      watchPoints.clear();
+      for (const [key, list] of Object.entries(watch)) {
+        if (parsed.legs.some(leg => leg['Étape'] === key)) {
+          watchPoints.set(key, list.map(point => ({ ...WATCH_DEFAULTS, ...point, at: L.latLng(point.at) })));
+        }
+      }
       trials.forEach(trial => { trial.line.remove(); trial.markers.remove(); });
       trials.clear();
       file = parsed;
@@ -339,6 +444,7 @@
         pointing: pointingDeg,
         manual: Object.fromEntries([...trials].map(([key, trial]) =>
           [key, { mode: trial.mode, passages: trial.points.map(({ lat, lng }) => [lat, lng]) }])),
+        watch: Object.fromEntries([...watchPoints].map(([key, list]) => [key, list.map(plainPoint)])),
       });
     }
 
@@ -420,8 +526,10 @@
 
     bar.querySelector('.save').addEventListener('click', async () => {
       stopEditing();
+      closeWatch();
       try {
-        const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg });
+        const watch = file.legs.flatMap(leg => (watchPoints.get(leg['Étape']) ?? []).map(point => ({ leg: leg['Étape'], ...plainPoint(point) })));
+        const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg, watch });
         download(name, new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
         useFile(await readRoutesFile(bytes.buffer), bytes.buffer, { origin: 'saved' });
         showMessage(`${name} téléchargé. Déposé dans le dossier NJORD_2027 du Drive, il est repris par le prochain ./update.sh, ` +
@@ -466,12 +574,12 @@
         line.bindTooltip(() => `<b>Étape ${escapeHtml(leg['Étape'])} · ${escapeHtml(leg['Zone / itinéraire'])}</b><br>` +
           `${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))}<br>` +
           legDistances(route), { sticky: true });
-        line.on('click', event => (editing ? addTrialPoint(event.latlng) : goTo(route)));
+        line.on('click', event => clickOnMap(event.latlng) || goTo(route));
         bounds.extend(line.getBounds());
         route.number = L.marker(line.getCenter(), {
           icon: L.divIcon({ className: 'leg-number', html: escapeHtml(leg['Étape']), iconSize: [22, 22] }),
           title: `Étape ${leg['Étape']}`,
-        }).on('click', () => (editing ? null : goTo(route))).addTo(drawn);
+        }).on('click', () => (editing || placing ? null : goTo(route))).addTo(drawn);
         visit(ends[0], leg['Embarquement hypothétique'],
           `Départ ${escapeHtml(formatDate(leg['Départ prévu']))} (étape ${escapeHtml(leg['Étape'])})`);
         visit(ends[1], leg['Débarquement hypothétique'],
@@ -485,6 +593,8 @@
         })
           .bindTooltip(escapeHtml(names[0]), { permanent: true, direction: 'right', className: 'port-label' })
           .bindPopup([...names.map(name => `<b>${escapeHtml(name)}</b>`), ...lines].join('<br>'))
+          // A point placed on a port takes the port's own position.
+          .on('click', event => placing && (placeWatchPoint(L.latLng(at)), event.target.closePopup()))
           .addTo(drawn);
       });
       allBounds = bounds;
@@ -530,10 +640,12 @@
         trials.get(legKey(route))?.line.setStyle({ opacity });
         route.number.setOpacity(opacity);
       });
+      drawWatch();
     }
 
     function showVoyage() {
       stopEditing();
+      closeWatch();
       shownRoute = null;
       legHighlight.remove();
       statsPoints.remove();
@@ -546,6 +658,7 @@
 
     function showLeg(route) {
       if (editing && editing !== route) stopEditing();
+      if (placing !== route && watchLeg() !== route) closeWatch();
       shownRoute = route;
       fadeOthers();
       markTabs();
@@ -692,10 +805,12 @@
         `<div class="small leg-distances">${legDistances(route)}</div>` +
         (route.auto.missing ? `<div class="small warning">Parcours auto absent du fichier : tracé en ligne droite, ./update.sh le calcule.</div>` : '') +
         `<div class="trial"></div>` +
+        `<div class="watch"></div>` +
         `<h3>Vers d'autres outils</h3><div class="small leg-links"></div>` +
         `<div class="wind-block"></div>` +
         `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
       showTrialPanel();
+      showWatchPanel();
       renderWindBlock(route);
       showLegLinks(route);
       if (trial) loadCoastMask();
@@ -715,7 +830,8 @@
         `<div class="gpx"><button type="button" class="gpx-download">GPX de l'étape</button>` +
         (shareable ? `<button type="button" class="gpx-share">Envoyer vers une appli…</button>` : '') +
         `<button type="button" class="kml-download">KML (Google Earth)</button>` +
-        `<span>${trial ? 'parcours auto et manuel' : 'parcours auto'} : le GPX pour Navionics ou un traceur, le KML pour ` +
+        `<span>${trial ? 'parcours auto et manuel' : 'parcours auto'}${watchPoints.has(legKey(route)) ? ', points de vigilance' : ''} : ` +
+        `le GPX pour Navionics ou un traceur, le KML pour ` +
         `Google Earth (Projet › Importer) ; à vérifier sur la carte marine</span></div>`;
       box.querySelector('.gpx-download').addEventListener('click', () => download(gpxName, gpxFile()));
       box.querySelector('.kml-download').addEventListener('click', () =>
@@ -728,7 +844,13 @@
 
     const EXPORT_NOTE = 'Tracé calculé pour préparer le voyage, pas une route de navigation : à vérifier sur la carte marine.';
 
-    // What a leg's exports carry: its two ports, and each of its routes with its length.
+    // Garmin's names for a waypoint's symbol, which a chart plotter shows; an app that does not know
+    // them shows its own mark.
+    const GPX_SYMBOLS = { 'Abri': 'Anchor', 'Port': 'Marina', 'Écluse ou pont': 'Bridge', 'Zone réglementée': 'Restricted Area',
+      'Formalités': 'Flag, Blue' };
+
+    // What a leg's exports carry: its two ports, each of its routes with its length, and its points
+    // of vigilance, their type, level, note and source in one text.
     function legExport(route) {
       const { leg } = route;
       const key = legKey(route);
@@ -742,18 +864,29 @@
         routes: [{ name: ROUTE_NAMES.auto, letter: 'A', path: route.path, nm: route.auto.nm },
           ...(trial ? [{ name: ROUTE_NAMES.manual, letter: 'M', path: trial.path, nm: pathNm(trial.path) }] : [])]
           .map(one => ({ ...one, title: `Étape ${key} · parcours ${one.name} (${Math.round(one.nm)} NM)` })),
+        watch: (watchPoints.get(key) ?? []).map(point => ({
+          at: [point.at.lat, point.at.lng],
+          name: `${key} · ${watchTitle(point)}`,
+          level: point.level,
+          kind: `${point.type}, ${point.level.toLowerCase()}`,
+          text: [`${point.type}, ${point.level.toLowerCase()}.`, point.note, point.source && `Source : ${point.source}`,
+            point.recheck && 'À revérifier.'].filter(Boolean).join('\n'),
+          symbol: point.level === 'Danger' ? 'Danger Area' : GPX_SYMBOLS[point.type] ?? 'Waypoint',
+        })),
       };
     }
 
     // For a navigation app or a chart plotter: each route twice, as a route and as a track, since
     // some apps import only one of the two.
     function legGpx(route) {
-      const { key, ports, routes } = legExport(route);
+      const { key, ports, routes, watch } = legExport(route);
       const point = (tag, [lat, lon], name) =>
         `<${tag} lat="${lat.toFixed(5)}" lon="${lon.toFixed(5)}">${name ? `<name>${escapeXml(name)}</name>` : ''}</${tag}>`;
       const note = `<desc>${EXPORT_NOTE}</desc>`;
       return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="NJORD parcours" xmlns="http://www.topografix.com/GPX/1/1">\n` +
         ports.map(([at, name]) => `${point('wpt', at, name)}\n`).join('') +
+        watch.map(({ at: [lat, lon], name, kind, text, symbol }) => `<wpt lat="${lat.toFixed(5)}" lon="${lon.toFixed(5)}">` +
+          `<name>${escapeXml(name)}</name><desc>${escapeXml(text)}</desc><sym>${escapeXml(symbol)}</sym><type>${escapeXml(kind)}</type></wpt>\n`).join('') +
         routes.map(({ letter, path, title }) => {
           const name = `<name>${escapeXml(title)}</name>`;
           return `<rte>${name}${note}${path.map((at, i) => point('rtept', at, `${key}${letter}${String(i + 1).padStart(2, '0')}`)).join('')}</rte>\n` +
@@ -765,14 +898,19 @@
     // For Google Earth, which reads KML but not GPX: the routes in the map's colours (KML writes a
     // colour as alpha, blue, green, red).
     function legKml(route) {
-      const { key, ports, routes } = legExport(route);
+      const { key, ports, routes, watch } = legExport(route);
       const kmlColour = css => `ff${css.slice(5, 7)}${css.slice(3, 5)}${css.slice(1, 3)}`;
       const coordinates = path => path.map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)},0`).join(' ');
       return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n` +
         `<name>${escapeXml(`Étape ${key} · ${route.leg['Zone / itinéraire'] ?? ''}`)}</name><description>${EXPORT_NOTE}</description>\n` +
         `<Style id="auto"><LineStyle><color>${kmlColour(ROUTE_COLOR)}</color><width>4</width></LineStyle></Style>\n` +
         `<Style id="manuel"><LineStyle><color>${kmlColour(TRIAL_COLOR)}</color><width>4</width></LineStyle></Style>\n` +
+        // Google Earth's white pin, tinted with the level's colour.
+        WATCH_LEVELS.map(level => `<Style id="vigilance-${level}"><IconStyle><color>${kmlColour(WATCH_LOOK[level].fill)}</color>` +
+          `<Icon><href>http://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png</href></Icon></IconStyle></Style>\n`).join('') +
         ports.map(([at, name]) => `<Placemark><name>${escapeXml(name)}</name><Point><coordinates>${coordinates([at])}</coordinates></Point></Placemark>\n`).join('') +
+        watch.map(({ at, name, level, text }) => `<Placemark><name>${escapeXml(name)}</name><description>${escapeXml(text)}</description>` +
+          `<styleUrl>#vigilance-${level}</styleUrl><Point><coordinates>${coordinates([at])}</coordinates></Point></Placemark>\n`).join('') +
         routes.map(({ name, path, title }) => `<Placemark><name>${escapeXml(title)}</name><styleUrl>#${name}</styleUrl>` +
           `<LineString><tessellate>1</tessellate><coordinates>${coordinates(path)}</coordinates></LineString></Placemark>\n`).join('') +
         `</Document></kml>\n`;
@@ -1081,7 +1219,9 @@
       }).then(
         mask => {
           coast = mask;
+          // Until now the passages were joined in straight lines: the lengths shown change too.
           trials.forEach((trial, key) => placePassages(legRoutes.get(key), trial.points, trial.mode));
+          updateFigures();
         },
         () => {
           trialMessage = 'Côtes indisponibles : les passages ne sont ni contrôlés ni contournés.';
@@ -1120,7 +1260,7 @@
         const line = L.polyline([], { color: TRIAL_COLOR, weight: 3, bubblingMouseEvents: false });
         line.bindTooltip(() => `<b>Étape ${escapeHtml(key)} · parcours manuel</b><br>` +
           `${Math.round(pathNm(trials.get(key)?.path ?? []))} NM`, { sticky: true });
-        line.on('click', event => (editing ? addTrialPoint(event.latlng) : goTo(route)));
+        line.on('click', event => clickOnMap(event.latlng) || goTo(route));
         trials.set(key, { points: [], path: null, mode: mode ?? route.auto.mode, markers: L.layerGroup(), line });
       }
       const trial = trials.get(key);
@@ -1189,6 +1329,7 @@
     }
 
     function startEditing(route) {
+      closeWatch();
       editing = route;
       trialMessage = '';
       map.getContainer().classList.add('trial-mode');
@@ -1212,7 +1353,13 @@
     }
 
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && editing) stopEditing();
+      if (event.key !== 'Escape') return;
+      if (editing) stopEditing();
+      if (placing || watchOpen) {
+        closeWatch();
+        drawWatch();
+        showWatchPanel();
+      }
     });
 
     // Passages are written with four decimals, about ten metres: rounded where they are placed,
@@ -1249,7 +1396,16 @@
       setPassages(editing, points);
     }
 
-    map.on('click', event => editing && addTrialPoint(event.latlng));
+    // A click on the map places a passage or a point of vigilance while one is being placed; true
+    // when it did.
+    function clickOnMap(latlng) {
+      if (editing) addTrialPoint(latlng);
+      else if (placing) placeWatchPoint(latlng);
+      else return false;
+      return true;
+    }
+
+    map.on('click', event => clickOnMap(event.latlng));
 
     function trialFigures(route) {
       if (!trials.has(legKey(route))) return 'Cliquer sur la carte pour poser un premier passage.';
@@ -1294,6 +1450,164 @@
       box.querySelector('.clear')?.addEventListener('click', () => setPassages(route, []));
     }
 
+
+    const watchTitle = point => point.title || 'Point sans titre';
+    const watchKind = point => `${escapeHtml(point.type)}, ${escapeHtml(point.level.toLowerCase())}`;
+    const watchLeg = () => legRoutes.get([...watchPoints].find(([, list]) => list.includes(watchOpen))?.[0]) ?? null;
+
+    // A link shows its site's name, the whole address on hover; any other source as typed.
+    function watchSourceHtml(source) {
+      if (!source) return `<div class="small">Source : à indiquer</div>`;
+      let link = null;
+      try {
+        link = /^https?:\/\//.test(source) ? new URL(source) : null;
+      } catch {
+        // Not an address: shown as typed.
+      }
+      return `<div class="small">Source : ${link
+        ? `<a href="${escapeHtml(link.href)}" title="${escapeHtml(link.href)}" target="_blank" rel="noopener">${escapeHtml(link.hostname.replace(/^www\./, ''))} ↗</a>`
+        : escapeHtml(source)}</div>`;
+    }
+
+    const watchDetailHtml = point => (point.note ? `<div class="watch-note">${escapeHtml(point.note)}</div>` : '') +
+      watchSourceHtml(point.source) + (point.recheck ? `<span class="tag">à revérifier</span>` : '');
+
+    function drawWatch() {
+      watchMarkers.clearLayers();
+      watchMarkerOf.clear();
+      watchPoints.forEach((list, key) => list.forEach(point => {
+        const open = watchOpen === point;
+        const { size } = WATCH_LOOK[point.level];
+        const marker = L.marker(point.at, {
+          icon: L.divIcon({ className: `watch-point${open ? ' open' : ''}`, html: watchMarkHtml(point), iconSize: [size, size] }),
+          draggable: open,
+          opacity: !shownRoute || legKey(shownRoute) === key ? 1 : 0.35,
+          zIndexOffset: open ? 1000 : 500,
+        })
+          .bindTooltip(() => `<b>${escapeHtml(watchTitle(point))}</b><br>${watchKind(point)}` +
+            `${shownRoute && legKey(shownRoute) === key ? '' : ` · étape ${escapeHtml(key)}`}`,
+            { direction: 'top', offset: [0, -size / 2] })
+          .bindPopup(() => `<b>${escapeHtml(watchTitle(point))}</b><br>${watchKind(point)} · ` +
+            `<a href="#etape-${escapeHtml(key)}">étape ${escapeHtml(key)}</a>` + watchDetailHtml(point), { maxWidth: 280 })
+          .on('dragend', event => {
+            point.at = rounded(event.target.getLatLng().wrap());
+            markModified();
+          })
+          .addTo(watchMarkers);
+        watchMarkerOf.set(point, marker);
+      }));
+      document.querySelectorAll('.legend .watch-legend').forEach(line => { line.hidden = watchPoints.size === 0; });
+    }
+
+    function closeWatch() {
+      if (placing && !editing) map.getContainer().classList.remove('trial-mode');
+      placing = null;
+      watchOpen = null;
+    }
+
+    function placeWatchPoint(latlng) {
+      const key = legKey(placing);
+      const point = { at: rounded(latlng.wrap()), ...WATCH_DEFAULTS, title: '', note: '', source: '', recheck: false };
+      watchPoints.set(key, [...(watchPoints.get(key) ?? []), point]);
+      closeWatch();
+      watchOpen = point;
+      markModified();
+      drawWatch();
+      showWatchPanel();
+      side.querySelector('.watch .w-title')?.focus();
+    }
+
+    function watchFormHtml(point) {
+      const options = (choices, chosen) => choices.map(choice =>
+        `<option${choice === chosen ? ' selected' : ''}>${escapeHtml(choice)}</option>`).join('');
+      return `<div class="watch-form">` +
+        `<div class="kinds"><label>Type<select class="w-type">${options(WATCH_TYPES, point.type)}</select></label>` +
+        `<label>Niveau<select class="w-level">${options(WATCH_LEVELS, point.level)}</select></label></div>` +
+        `<label>Titre<input type="text" class="w-title" value="${escapeHtml(point.title)}" placeholder="ce qu'on y surveille, en quelques mots"></label>` +
+        `<label>Ce qu'il faut savoir<textarea class="w-note" rows="4">${escapeHtml(point.note)}</textarea></label>` +
+        `<label>Source<input type="text" class="w-source" value="${escapeHtml(point.source)}" placeholder="un lien, un guide, un équipier"></label>` +
+        `<label class="check"><input type="checkbox" class="w-recheck"${point.recheck ? ' checked' : ''}>` +
+        `À revérifier : un fait qui change, ou une source à confirmer</label>` +
+        `<div class="small">Glisser le point sur la carte pour le déplacer.</div>` +
+        `<div class="actions"><button type="button" class="watch-done">Terminer</button>` +
+        `<button type="button" class="watch-delete">Supprimer le point</button></div></div>`;
+    }
+
+    function showWatchPanel() {
+      const box = side.querySelector('.watch');
+      const route = shownRoute;
+      if (!box || !route) return;
+      const key = legKey(route);
+      const list = watchPoints.get(key) ?? [];
+      box.innerHTML = `<h3>Points de vigilance</h3>` +
+        (list.length ? '' : `<div class="small">Ce qu'il faut savoir à un endroit de l'étape (un courant, un haut-fond, ` +
+          `un port, un abri), et d'où vient l'information.</div>`) +
+        `<ol>${list.map((point, i) => `<li data-index="${i}"><span class="watch-mark">${watchMarkHtml(point)}</span><div>` +
+          (watchOpen === point
+            ? watchFormHtml(point)
+            : `<button type="button" class="watch-title">${escapeHtml(watchTitle(point))}</button>` +
+              `<div class="small">${watchKind(point)}</div>${watchDetailHtml(point)}` +
+              `<div class="actions"><button type="button" class="watch-edit">Modifier</button></div>`) +
+          `</div></li>`).join('')}</ol>` +
+        (placing === route
+          ? `<div class="small"><b>Cliquer sur la carte</b> à l'endroit du point, ou sur un port (Échap : annuler).</div>`
+          : `<div class="actions"><button type="button" class="watch-add">Ajouter un point</button></div>`) +
+        (list.length ? `<div class="small">Ils entrent dans le fichier de parcours avec « Enregistrer », en haut à droite.</div>` : '');
+
+      showLegLinks(route);
+      box.querySelector('.watch-add')?.addEventListener('click', () => {
+        stopEditing();
+        closeWatch();
+        placing = route;
+        map.getContainer().classList.add('trial-mode');
+        drawWatch();
+        showWatchPanel();
+      });
+      box.querySelectorAll('li').forEach(item => {
+        const point = list[Number(item.dataset.index)];
+        item.querySelector('.watch-title')?.addEventListener('click', () => {
+          map.panTo(point.at);
+          watchMarkerOf.get(point)?.openPopup();
+        });
+        item.querySelector('.watch-edit')?.addEventListener('click', () => {
+          closeWatch();
+          watchOpen = point;
+          drawWatch();
+          showWatchPanel();
+          map.panTo(point.at);
+        });
+        const field = (selector, name) => item.querySelector(selector)?.addEventListener('input', event => {
+          point[name] = event.target.value.trim();
+          markModified();
+        });
+        field('.w-title', 'title');
+        field('.w-note', 'note');
+        field('.w-source', 'source');
+        const look = (selector, name, value) => item.querySelector(selector)?.addEventListener('change', event => {
+          point[name] = value(event.target);
+          item.querySelector('.watch-mark').innerHTML = watchMarkHtml(point);
+          markModified();
+          drawWatch();
+        });
+        look('.w-type', 'type', target => target.value);
+        look('.w-level', 'level', target => target.value);
+        look('.w-recheck', 'recheck', target => target.checked);
+        item.querySelector('.watch-done')?.addEventListener('click', () => {
+          closeWatch();
+          drawWatch();
+          showWatchPanel();
+        });
+        item.querySelector('.watch-delete')?.addEventListener('click', () => {
+          const kept = list.filter(other => other !== point);
+          if (kept.length) watchPoints.set(key, kept);
+          else watchPoints.delete(key);
+          closeWatch();
+          markModified();
+          drawWatch();
+          showWatchPanel();
+        });
+      });
+    }
 
     // Opened from file://, the browser refuses fetch(): the page has to be served.
     async function start() {
