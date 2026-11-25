@@ -13,9 +13,10 @@
   <script src="store.js"></script>
   <script src="weather.js"></script>
   <script src="sea-route.js"></script>
+  <script src="depth-grid.js"></script>
   <script src="route-wind.js"></script>
   <style>
-    :root { --route: #1d4e89; --trial: #a855f7; --trial-text: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; --watch: #a8730c; --watch-text: #7a5205; --watch-danger: #d32f2f; --watch-warning: #fbc02d; --watch-info: #1565c0; --watch-ink: #1a1a1a; }
+    :root { --route: #1d4e89; --trial: #a855f7; --trial-text: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; --watch: #a8730c; --watch-text: #7a5205; --watch-danger: #d32f2f; --watch-warning: #fbc02d; --watch-info: #1565c0; --watch-ink: #1a1a1a; --isobath: #37474f; --isobath-5: #003c30; --isobath-10: #1f7f75; --isobath-20: #5fb3a8; }
     html, body { height: 100%; margin: 0; }
     body { display: flex; flex-direction: column; font-family: system-ui, sans-serif; color: #1d2b3a; }
     button { font: inherit; }
@@ -51,7 +52,9 @@
     .side h2 { margin: 0 0 4px; font-size: 16px; }
     .side h3 { margin: 16px 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--route); }
     .method-link { margin-top: 6px; padding: 5px 8px; border-left: 3px solid var(--route); background: #f2f5f9; }
-    .side .small { color: #666; font-size: 11px; }
+    .side .small, .leaflet-popup .small { color: #666; font-size: 11px; }
+    .leaflet-popup .small { margin-top: 4px; }
+    .isobath-label { color: var(--isobath); font-size: 10px; font-weight: 600; line-height: 12px; text-align: center; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 2px #fff; }
     .side .credit { margin-top: 14px; color: #666; font-size: 11px; }
     .manual-text { color: var(--trial-text); }
     .warning { color: var(--trial-land); }
@@ -127,6 +130,9 @@
     .legend .watch-legend span { display: inline-flex; align-items: center; gap: 4px; }
     .legend .watch-legend svg { width: 16px; height: 16px; }
     .legend [hidden] { display: none; }
+    .legend .isobath-legend { flex-wrap: wrap; gap: 4px 10px; }
+    .legend .isobath-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .legend .isobath-legend svg { width: 20px; }
     .port-label { padding: 0 4px; border: none; background: none; box-shadow: none; color: #1d2b3a; font-weight: 600; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; }
     .port-label::before { display: none; }
     .leaflet-container.trial-mode { cursor: crosshair; }
@@ -264,26 +270,43 @@
     // OpenStreetMap's data. A community map, uneven from place to place, not an official chart.
     const SEAMARKS = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
       maxZoom: 18,
-      zIndex: 3,
+      zIndex: 4,
       attribution: 'Balisage &copy; <a href="https://www.openseamap.org/">OpenSeaMap</a> (CC BY-SA), ' +
         'données &copy; <a href="https://www.openstreetmap.org/copyright">les contributeurs d’OpenStreetMap</a>',
     });
     SEAMARKS.addTo(map);
-    // The European Union's bathymetry: the mean depth in colours and the depth contours from 50 to
-    // 5,000 m, under the seamarks. Not a chart: no soundings in a harbour
-    // or a channel, and the service itself says it is not for navigation.
-    const DEPTHS = L.tileLayer.wms('https://ows.emodnet-bathymetry.eu/wms', {
-      layers: 'emodnet:mean_multicolour,emodnet:contours',
+    // The European Union's bathymetry, under the seamarks: the mean depth in colours, and the depth
+    // contours, each shown on its own. Not a chart: no soundings in a harbour or a channel, and the
+    // service itself says it is not for navigation.
+    const depthWms = (layers, options) => L.tileLayer.wms('https://ows.emodnet-bathymetry.eu/wms', {
+      layers,
       format: 'image/png',
       transparent: true,
-      opacity: 0.75,
-      zIndex: 2,
       maxZoom: 16,
       attribution: 'Profondeurs &copy; <a href="https://emodnet.ec.europa.eu/bathymetry">EMODnet Bathymétrie</a> (CC BY 4.0)',
+      ...options,
     });
+    const DEPTH_COLOURS = depthWms('emodnet:mean_multicolour', { opacity: 0.75, zIndex: 2 });
+    // EMODnet's own contours stop at 50 m: the finer ones are drawn here from its grid, once zoomed
+    // in, below the routes and without catching their clicks.
+    map.createPane('isobaths');
+    map.getPane('isobaths').style.zIndex = 350;
+    map.getPane('isobaths').style.pointerEvents = 'none';
+    const isobathRenderer = L.canvas({ pane: 'isobaths' });
+    const isobathLayer = L.layerGroup();
+    const DEPTH_LINES = L.layerGroup([depthWms('emodnet:contours', { zIndex: 3 }), isobathLayer]);
+    // The zoom from which each contour is drawn: closer for the shallower one, whose cells matter.
+    // The shallower, the darker and the thicker; its depth is written at its own place along the
+    // line, so that close contours keep apart.
+    const ISOBATH_LEVELS = [
+      { depth: 20, zoom: 12, weight: 1.1, labelAt: 0.75 },
+      { depth: 10, zoom: 12, weight: 1.6, labelAt: 0.5 },
+      { depth: 5, zoom: 13, weight: 2.2, labelAt: 0.25 },
+    ];
     L.control.layers(BASE_MAPS, {
       'Balisage OpenSeaMap (feux, bouées, rails de trafic)': SEAMARKS,
-      'Profondeurs EMODnet (couleurs, courbes de 50 à 5 000 m)': DEPTHS,
+      'Profondeurs EMODnet en couleurs (profondeur au clic)': DEPTH_COLOURS,
+      'Courbes de profondeur moyenne EMODnet (50 à 5 000 m ; 20, 10 puis 5 m en zoomant)': DEPTH_LINES,
     // Left to itself, the control stacks the layers in its own order: the depths over the seamarks.
     }, { position: 'bottomright', autoZIndex: false }).addTo(map);
 
@@ -307,7 +330,12 @@
         `<div><svg viewBox="0 0 28 12"><circle class="port" cx="14" cy="6" r="5"/></svg>Port (cliquer : ses dates)</div>` +
         `<div class="watch-legend" hidden>${WATCH_LEVELS.map(level =>
           `<span>${watchMarkHtml({ type: 'Autre', level, recheck: false }, 16)}${level}</span>`).join('')}</div>` +
-        `<div class="watch-legend" hidden>Points de vigilance : cliquer pour le détail ; « ? », à revérifier</div>`;
+        `<div class="watch-legend" hidden>Points de vigilance : cliquer pour le détail ; « ? », à revérifier</div>` +
+        `<div class="isobath-legend isobath-lines" hidden>${[...ISOBATH_LEVELS].reverse().map(({ depth, weight }) =>
+          `<span><svg viewBox="0 0 20 12"><line x1="0" y1="6" x2="20" y2="6" stroke="${cssColor(`--isobath-${depth}`)}" ` +
+          `stroke-width="${weight}"/></svg>${depth} m</span>`).join('')}</div>` +
+        `<div class="isobath-legend" hidden>Courbes de profondeur moyenne, par mailles d'une centaine de mètres : ` +
+        `un haut-fond isolé y paraît moins profond qu'il n'est.</div>`;
       L.DomEvent.disableClickPropagation(box);
       return box;
     };
@@ -1422,7 +1450,107 @@
       return true;
     }
 
-    map.on('click', event => clickOnMap(event.latlng));
+    const depthShown = () => map.hasLayer(DEPTH_COLOURS) || map.hasLayer(DEPTH_LINES);
+    map.on('click', event => clickOnMap(event.latlng) || (depthShown() && showDepth(event.latlng.wrap())));
+
+    // EMODnet answers for the cell of its grid that holds the point: the mean depth (negative under
+    // water, positive above it), the range within the cell, and the survey it comes from unless the
+    // cell is interpolated; nothing (204) outside the seas it covers.
+    const DEPTH_URL = 'https://rest.emodnet-bathymetry.eu/depth_sample';
+    const depthPopup = L.popup({ maxWidth: 260 });
+    let depthAsked = 0;
+    const metres = value => `${value.toLocaleString('fr-CH', { maximumFractionDigits: Math.abs(value) < 10 ? 1 : 0 })} m`;
+
+    function depthHtml(sample) {
+      if (!sample) return 'Hors des mers que couvre EMODnet.';
+      if (sample.avg >= 0) {
+        return `<b>Pas d'eau</b> d'après EMODnet : une altitude de ${metres(sample.avg)} (terre, ou fond qui découvre).`;
+      }
+      const lines = [`<b>Profondeur ≈ ${metres(-sample.avg)}</b>`];
+      if (sample.min != null && sample.max != null) lines.push(`de ${metres(-sample.max)} à ${metres(-sample.min)} dans sa maille`);
+      const { identifier, metadata_url: url } = sample.reference ?? {};
+      if (sample.interpolationType) lines.push('valeur interpolée entre les relevés voisins');
+      else if (identifier) {
+        lines.push(`relevé : ${/^https:\/\//.test(url ?? '')
+          ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(identifier)}</a>`
+          : escapeHtml(identifier)}`);
+      }
+      return `${lines.join('<br>')}<div class="small">EMODnet Bathymétrie : la moyenne d'une maille d'une ` +
+        `centaine de mètres, où un haut-fond isolé paraît moins profond qu'il n'est ; le moins profond de la maille ` +
+        `est le chiffre prudent. Pas une sonde de carte marine.</div>`;
+    }
+
+    async function showDepth(latlng) {
+      const asked = ++depthAsked;
+      depthPopup.setLatLng(latlng).setContent('Profondeur…').openOn(map);
+      let html;
+      try {
+        const response = await fetch(`${DEPTH_URL}?geom=POINT(${latlng.lng.toFixed(5)} ${latlng.lat.toFixed(5)})`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        html = depthHtml(response.status === 204 ? null : await response.json());
+      } catch {
+        html = "EMODnet n'a pas répondu : profondeur indisponible.";
+      }
+      // A later click has its own answer coming.
+      if (asked === depthAsked) depthPopup.setContent(html);
+    }
+
+    map.on('overlayremove', () => depthShown() || map.closePopup(depthPopup));
+
+    // A short line, around a cell or two, goes without its depth written on it.
+    const ISOBATH_LABEL_POINTS = 12;
+    const isobathTiles = new Map();
+    let isobathsAsked = 0;
+
+    function isobathTile([x, y]) {
+      const key = `${x},${y}`;
+      if (!isobathTiles.has(key)) {
+        const lines = fetchDepthTile(x, y)
+          .then(grid => new Map(ISOBATH_LEVELS.map(({ depth }) => [depth, isobaths(grid, depth)])));
+        // A tile that failed is asked again the next time it is shown.
+        lines.catch(() => isobathTiles.delete(key));
+        isobathTiles.set(key, lines);
+      }
+      return isobathTiles.get(key);
+    }
+
+    async function showIsobaths() {
+      const asked = ++isobathsAsked;
+      const levels = ISOBATH_LEVELS.filter(({ zoom }) => map.getZoom() >= zoom);
+      document.querySelectorAll('.legend .isobath-legend').forEach(line => {
+        line.hidden = !map.hasLayer(DEPTH_LINES) || (line.classList.contains('isobath-lines') && !levels.length);
+      });
+      if (!map.hasLayer(DEPTH_LINES) || !levels.length) {
+        isobathLayer.clearLayers();
+        return;
+      }
+      const tiles = await Promise.allSettled(depthTilesIn(map.getBounds()).map(isobathTile));
+      if (asked !== isobathsAsked) return;
+      isobathLayer.clearLayers();
+      const failed = tiles.find(({ status }) => status === 'rejected');
+      if (failed) {
+        showMessage(`Courbes de ${levels.map(({ depth }) => depth).join(', ')} m : EMODnet n'a pas fourni sa grille ` +
+          `de profondeurs pour une partie de la vue (${failed.reason.message}).`, 'error');
+      }
+      const drawn = tiles.flatMap(({ value: tile }) => (tile ? levels.flatMap(level =>
+        tile.get(level.depth).map(line => ({ line, ...level }))) : []));
+      drawn.forEach(({ line, weight }) => L.polyline(line, {
+        renderer: isobathRenderer, color: '#fff', weight: weight + 2, opacity: 0.8, interactive: false,
+      }).addTo(isobathLayer));
+      drawn.forEach(({ line, depth, weight, labelAt }) => {
+        L.polyline(line, { renderer: isobathRenderer, color: cssColor(`--isobath-${depth}`), weight, interactive: false })
+          .addTo(isobathLayer);
+        if (line.length < ISOBATH_LABEL_POINTS) return;
+        L.marker(line[Math.floor(line.length * labelAt)], {
+          pane: 'isobaths',
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({ className: 'isobath-label', html: `${depth}`, iconSize: [24, 12] }),
+        }).addTo(isobathLayer);
+      });
+    }
+
+    map.on('moveend overlayadd overlayremove', showIsobaths);
 
     function trialFigures(route) {
       if (!trials.has(legKey(route))) return 'Cliquer sur la carte pour poser un premier passage.';
