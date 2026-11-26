@@ -70,6 +70,11 @@
     .tl-key::before { content: ''; display: inline-block; width: 14px; height: 5px; margin-right: 3px;
       border-radius: 2px; background: var(--route); vertical-align: middle; }
     .tl-key.manual::before { background: var(--trial); }
+    .tl-wait, .tl-key.wait::before { box-sizing: border-box; border: 1px solid var(--trial-land); border-radius: 2px;
+      background: repeating-linear-gradient(135deg, var(--trial-land) 0 1px, transparent 1px 4px); }
+    .tl-wait { position: absolute; top: 28px; height: 8px; opacity: 0.75; }
+    .tl-wait.both { top: 25px; height: 15px; }
+    .tl-key.wait::before { height: 7px; }
     .tl-sea.upper, .tl-late.upper { top: 25px; height: 5px; }
     .tl-sea.lower, .tl-late.lower { top: 35px; height: 5px; }
     .tl-delay { position: absolute; top: 46px; color: var(--trial-land); font-size: 9px; font-weight: 600; white-space: nowrap; pointer-events: none; }
@@ -418,7 +423,7 @@
     function formatHours(hours) {
       const total = Math.round(Math.abs(hours));
       const days = Math.floor(total / 24);
-      return days ? `${days} j ${total % 24} h` : `${total} h`;
+      return days ? `${days} j${total % 24 ? ` ${total % 24} h` : ''}` : `${total} h`;
     }
 
     function formatDistance(value) {
@@ -1115,7 +1120,8 @@
         `donne un retard ou si l'étape d'avant n'est pas arrivée, et navigue à ${trialSpeed} nd en tirant des bords comme ` +
         `dans le tableau du voyage. Le cadre : les dates de l'étape au tableur et ses jours prévus ; la barre : le temps ` +
         `en mer, écrit à sa fin quand le cadre a la place. Une étape qui a un parcours manuel a deux barres, l'auto ` +
-        `au-dessus et le manuel en dessous ; le voilier et les étapes suivantes suivent le manuel. Une barre est pâle tant ` +
+        `au-dessus et le manuel en dessous ; le voilier et les étapes suivantes suivent le manuel. Hachurée, l'attente ` +
+        `d'un départ retardé : la barre commence d'autant plus tard dans son cadre. Une barre est pâle tant ` +
         `que le vent de son parcours n'est pas calculé (route directe) ; ` +
         `en rouge : une arrivée après la date prévue, la relève d'équipage menacée. C'est le plan, pas une prévision. ` +
         `Jour ou nuit à l'arrivée : lever et coucher du soleil au port, calculés par SunCalc.`,
@@ -1818,9 +1824,10 @@
         `Étape ${leg['Étape']} · ${leg['Zone / itinéraire']}`,
         `Cadre : prévue du ${formatDate(leg['Départ prévu'], {})} au ${formatDate(leg['Arrivée prévue'], {})}, ` +
           `${plannedHours(leg) / 24} jours`,
-        `Départ ${formatWhen(step.departs)} UTC` +
-          (delay ? `, avec ${String(delay).replace('.', ',')} j de retard simulé` : '') +
-          `, à ${trialSpeed} nd en tirant des bords`,
+        `Départ ${formatWhen(step.departs)} UTC, à ${trialSpeed} nd en tirant des bords`,
+        ...(step.departs > step.planned ? [`Hachures : ${formatHours((step.departs - step.planned) / HOUR)} d'attente ` +
+          `après le départ prévu, ${step.departs > step.planned + (delay ?? 0) * DAY ? "l'étape d'avant arrivant tard" :
+            `${String(delay).replace('.', ',')} j de retard simulé`}`] : []),
         ...step.sailed.map(bar),
         ...(step.sailed.length > 1 ? ['Le voilier de la frise, et les étapes suivantes, suivent le parcours manuel.'] : []),
       ].join('\n');
@@ -1885,12 +1892,17 @@
       }));
       const lengths = plan.flatMap((step, i) => step.sailed.filter(alt => alt.arrives <= step.closes).map(alt =>
         `<span class="tl-length${place(step, alt)}" data-frame="${i}" style="left: ${x(alt.arrives)}">${inDays(alt.hours)}</span>`));
+      // The wait before a late departure, hatched: without it a bar that starts late in its frame reads
+      // as a longer time at sea.
+      const waits = plan.filter(step => step.departs > step.planned).map(step =>
+        `<div class="tl-wait${step.sailed.length > 1 ? ' both' : ''}" style="left: ${x(step.planned)}; ` +
+        `width: ${width(step.planned, Math.min(step.departs, step.closes))}" title="${escapeHtml(stepSummary(step))}"></div>`);
       const delayed = plan.filter(step => delays.get(legKey(step.route))).map(step =>
         `<span class="tl-delay" style="left: ${x(step.planned)}">+${String(delays.get(legKey(step.route))).replace('.', ',')} j</span>`);
-      track.innerHTML = [...months, ...frames, ...seas, ...lates, ...lengths, ...delayed].join('') + `<div class="tl-cursor"></div>`;
+      track.innerHTML = [...months, ...frames, ...waits, ...seas, ...lates, ...lengths, ...delayed].join('') + `<div class="tl-cursor"></div>`;
       timeline.querySelector('.tl-note').innerHTML = `cadre : dates du tableur, jours prévus · ` +
         `barre : temps en mer, <span class="tl-key">parcours auto</span>, ` +
-        `<span class="tl-key manual">manuel</span> · ` +
+        `<span class="tl-key manual">manuel</span> · <span class="tl-key wait">départ retardé</span> · ` +
         `<span class="late">rouge</span> : arrivée en retard · heures UTC · glisser, molette ou flèches${why('timeline')}`;
       timeline.hidden = false;
       fitDurations();
