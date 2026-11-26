@@ -15,6 +15,9 @@
   <script src="sea-route.js"></script>
   <script src="depth-grid.js"></script>
   <script src="route-wind.js"></script>
+  <script src="route-currents.js"></script>
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"
+          integrity="sha384-oiKvfHOCwLd5BVeyS4Zc1WW9KNRFXyXCkijYVrNbvw6BzoPFC+HiHzZi8FlRAvQ3" crossorigin="anonymous"></script>
   <style>
     :root { --route: #1d4e89; --trial: #a855f7; --trial-text: #7d3c98; --trial-land: #c0392b; --line: #d6dde6; --watch: #a8730c; --watch-text: #7a5205; --watch-danger: #d32f2f; --watch-warning: #fbc02d; --watch-info: #1565c0; --watch-ink: #1a1a1a; --isobath: #37474f; --isobath-5: #003c30; --isobath-10: #1f7f75; --isobath-20: #5fb3a8; }
     html, body { height: 100%; margin: 0; }
@@ -43,9 +46,45 @@
 
     .main { display: flex; flex: 1; min-height: 0; }
     #map { flex: 1; min-width: 0; }
+    .map-column { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+    .map-column #map { min-height: 0; }
+    .timeline { flex: none; padding: 4px 10px 4px; border-top: 1px solid var(--line); background: #fff; font-size: 12px; user-select: none; }
+    .timeline[hidden] { display: none; }
+    .tl-head { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+    .tl-status .late, .tl-note .late { color: var(--trial-land); font-weight: 600; }
+    .tl-note { margin-left: auto; color: #666; font-size: 11px; }
+    .tl-track { position: relative; height: 57px; margin-top: 2px; cursor: ew-resize; touch-action: none; outline: none; }
+    .tl-track:focus-visible { box-shadow: 0 0 0 2px var(--route); }
+    .tl-month { position: absolute; top: 0; padding-left: 3px; border-left: 1px solid #b9c3cf; color: #555; font-size: 10px; line-height: 12px; white-space: nowrap; }
+    .tl-window { position: absolute; top: 14px; height: 30px; box-sizing: border-box; border: 1px solid #9fb3c8; border-radius: 3px; background: #e8eef5; overflow: hidden; }
+    .tl-window.shown { border-color: var(--route); border-width: 2px; }
+    .tl-leg { position: absolute; left: 2px; top: 1px; color: var(--route); font-size: 9px; line-height: 10px; font-weight: 600; white-space: nowrap; }
+    .tl-days { color: #444; font-weight: 400; }
+    .tl-length { position: absolute; top: 28px; margin-left: 3px; color: #333; font-size: 9px; line-height: 9px; white-space: nowrap; pointer-events: none; }
+    .tl-length.upper { top: 23px; }
+    .tl-length.lower { top: 33px; }
+    .tl-sea { position: absolute; top: 28px; height: 8px; border-radius: 2px; background: var(--route); }
+    .tl-sea.manual { background: var(--trial); }
+    .tl-sea.rough { opacity: 0.45; }
+    .tl-late { position: absolute; top: 28px; height: 8px; border-radius: 2px; background: var(--trial-land); }
+    .tl-key::before { content: ''; display: inline-block; width: 14px; height: 5px; margin-right: 3px;
+      border-radius: 2px; background: var(--route); vertical-align: middle; }
+    .tl-key.manual::before { background: var(--trial); }
+    .tl-sea.upper, .tl-late.upper { top: 25px; height: 5px; }
+    .tl-sea.lower, .tl-late.lower { top: 35px; height: 5px; }
+    .tl-delay { position: absolute; top: 46px; color: var(--trial-land); font-size: 9px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+    .tl-cursor { position: absolute; top: 11px; bottom: 0; width: 2px; margin-left: -1px; background: #111; pointer-events: none; }
+    .boat-icon svg { filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff); }
+    .current-mark { text-align: center; }
+    .current-mark span { display: block; margin-top: -2px; color: #111; font-size: 10px; font-weight: 600; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 2px #fff; white-space: nowrap; }
+    .side .delay input { width: 52px; }
+    .side .delay .late { color: var(--trial-land); font-weight: 600; }
+    .side .currents ul { margin: 4px 0; padding-left: 18px; }
+    .side .currents li { margin-bottom: 4px; }
     .side { box-sizing: border-box; width: clamp(360px, 40vw, 580px); overflow: auto; padding: 12px 16px; border-left: 1px solid var(--line); background: #fff; font-size: 13px; }
     @media (max-width: 800px) {
       .main { flex-direction: column; }
+      .map-column { flex: none; }
       #map { flex: none; height: 45vh; }
       .side { flex: 1; width: auto; border-top: 1px solid var(--line); border-left: none; }
     }
@@ -65,6 +104,11 @@
     .rose-tip, .why-tip { position: fixed; z-index: 2000; max-width: 230px; padding: 6px 9px; border-radius: 4px; background: #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); font-size: 12px; line-height: 1.45; pointer-events: none; }
     .why-tip { max-width: 300px; }
     .rose-tip[hidden], .why-tip[hidden] { display: none; }
+    .why-tip.wide { max-width: min(440px, calc(100vw - 8px)); }
+    .why-tip table { margin: 4px 0; border-collapse: collapse; font-size: 11px; line-height: 1.3; }
+    .why-tip th, .why-tip td { padding: 2px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .why-tip td:nth-child(3), .why-tip td:nth-child(4) { white-space: nowrap; text-align: right; }
+    .why-tip .swatch { display: inline-block; width: 9px; height: 9px; margin-right: 4px; vertical-align: -1px; }
     .rose-tip .bands { color: #444; }
     .rose-tip .swatch { display: inline-block; width: 10px; height: 10px; margin: 0 3px 0 6px; vertical-align: -1px; }
     .rose-tip .swatch:first-child { margin-left: 0; }
@@ -98,7 +142,8 @@
     .wind-block .hit { fill: transparent; }
     .wind-block .hit:hover { fill: rgba(29, 78, 137, 0.1); stroke: var(--route); stroke-width: 1; }
     .hull { fill: #fff; stroke: var(--route); stroke-width: 2; }
-    .scale { margin: 6px 0 4px; font-size: 10px; }
+    .scale-caption { margin-top: 6px; color: #555; font-size: 11px; text-align: right; }
+    .scale { margin: 2px 0 4px; font-size: 10px; }
     .scale-bar { display: flex; height: 15px; overflow: hidden; border-radius: 3px; }
     .scale-bar span { display: flex; align-items: center; justify-content: center; font-weight: 600; }
     .scale-ticks { position: relative; height: 13px; color: #555; }
@@ -178,7 +223,13 @@
   </header>
   <div class="message" role="status" hidden></div>
   <main class="main">
-    <div id="map"></div>
+    <div class="map-column">
+      <div id="map"></div>
+      <div class="timeline" hidden>
+        <div class="tl-head"><span class="tl-status"></span><span class="tl-note"></span></div>
+        <div class="tl-track" tabindex="0" aria-label="Frise du voyage : glisser, molette ou flèches pour changer de date"></div>
+      </div>
+    </div>
     <aside class="side"><h2>Chargement du fichier de parcours…</h2></aside>
   </main>
   <div class="rose-tip" hidden></div>
@@ -394,6 +445,8 @@
     let trialSpeed = 5;
     // How close to the wind the boat sails, in degrees: closer than that, it tacks.
     let pointingDeg = 45;
+    // The hour each leg leaves on its planned day, in UTC: a setting of the routes file.
+    let departureHour = DEFAULT_DEPARTURE_HOUR;
     let allBounds = null;
 
     const legRoutes = new Map();
@@ -442,7 +495,7 @@
       ({ at: [at.lat, at.lng], type, level, title, note, source, recheck });
 
     // A file read, or the state the browser kept of one, replaces what the map shows.
-    function useFile(parsed, bytes, { origin, manual = manualOf(parsed), watch = watchOf(parsed), speed = parsed.speed, pointing = parsed.pointing, changed = false }) {
+    function useFile(parsed, bytes, { origin, manual = manualOf(parsed), watch = watchOf(parsed), speed = parsed.speed, pointing = parsed.pointing, departure = parsed.departure, changed = false }) {
       stopEditing();
       closeWatch();
       watchPoints.clear();
@@ -460,6 +513,7 @@
       windStats = parsed.wind;
       trialSpeed = speed;
       pointingDeg = pointing;
+      departureHour = departure ?? DEFAULT_DEPARTURE_HOUR;
       for (const route of parsed.routes) {
         if (route.name === ROUTE_NAMES.manual && route.stats) manualWinds.set(route.stats.fingerprint, { stats: route.stats });
       }
@@ -472,6 +526,7 @@
       showFileBar();
       keep();
       showView();
+      scheduleTimeline();
     }
 
     // The browser keeps the file worked on, so that a reload finds it; the site's copy unchanged
@@ -487,6 +542,7 @@
         changed: modified,
         speed: trialSpeed,
         pointing: pointingDeg,
+        departure: departureHour,
         manual: Object.fromEntries([...trials].map(([key, trial]) =>
           [key, { mode: trial.mode, passages: trial.points.map(({ lat, lng }) => [lat, lng]) }])),
         watch: Object.fromEntries([...watchPoints].map(([key, list]) => [key, list.map(plainPoint)])),
@@ -574,7 +630,7 @@
       closeWatch();
       try {
         const watch = file.legs.flatMap(leg => (watchPoints.get(leg['Étape']) ?? []).map(point => ({ leg: leg['Étape'], ...plainPoint(point) })));
-        const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg, watch });
+        const { name, bytes } = await writeRoutesFile(file, { routes: routesToSave(), speed: trialSpeed, pointing: pointingDeg, departure: departureHour, watch });
         download(name, new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
         useFile(await readRoutesFile(bytes.buffer), bytes.buffer, { origin: 'saved' });
         showMessage(`${name} téléchargé. Déposé dans le dossier NJORD_2027 du Drive, il est repris par le prochain ./update.sh, ` +
@@ -694,6 +750,7 @@
       shownRoute = null;
       legHighlight.remove();
       statsPoints.remove();
+      currentMarkers.clearLayers();
       fadeOthers();
       markTabs();
       renderVoyage();
@@ -739,7 +796,8 @@
 
     const paceHtml = () =>
       `<div class="pace">Vitesse moyenne <input type="number" class="speed" min="1" max="15" step="0.5" value="${trialSpeed}"> nd · ` +
-      `remonte au vent jusqu'à <input type="number" class="pointing" min="30" max="70" step="5" value="${pointingDeg}">° du vent</div>`;
+      `remonte au vent jusqu'à <input type="number" class="pointing" min="30" max="70" step="5" value="${pointingDeg}">° du vent · ` +
+      `départ à <input type="number" class="departure" min="0" max="23" step="1" value="${departureHour}"> h UTC</div>`;
 
     function listenPace(box) {
       box.querySelector('.speed')?.addEventListener('input', event => {
@@ -758,10 +816,19 @@
           updateFigures();
         }
       });
+      box.querySelector('.departure')?.addEventListener('input', event => {
+        const hour = Number(event.target.value);
+        if (event.target.value !== '' && Number.isInteger(hour) && hour >= 0 && hour <= 23) {
+          departureHour = hour;
+          markModified();
+          updateFigures();
+        }
+      });
     }
 
     // The figures that follow the speed and the pointing angle, redrawn without the fields being typed in.
     function updateFigures() {
+      scheduleTimeline();
       if (!shownRoute) {
         side.querySelector('.voyage-figures').innerHTML = voyageTableHtml();
         listenVoyageRows();
@@ -779,9 +846,15 @@
       const rows = [...legRoutes.values()].map(route => {
         const { leg } = route;
         const list = routeList(route);
-        const duration = one => (one.stats || one.mode === ROUTE_MODES.straight ? formatHours(hours(one)) : 'vent à calculer');
+        const known = one => one.stats || one.mode === ROUTE_MODES.straight;
+        const duration = one => (known(one) ? formatHours(hours(one)) : 'vent à calculer');
+        const atSea = one => {
+          if (!known(one)) return '—';
+          const share = `${Math.round((hours(one) / plannedHours(leg)) * 100)} %`;
+          return hours(one) > plannedHours(leg) ? `<span class="late">${share}</span>` : share;
+        };
         const margin = one => {
-          if (!one.stats && one.mode !== ROUTE_MODES.straight) return '—';
+          if (!known(one)) return '—';
           const left = plannedHours(leg) - hours(one);
           return left >= 0 ? `+${formatHours(left)}` : `<span class="late">−${formatHours(left)}</span>`;
         };
@@ -791,17 +864,19 @@
           `${escapeHtml(formatDate(leg['Arrivée prévue'], {}))}</div></td>` +
           `<td>${lines(list, one => `${Math.round(one.nm)} NM`)}</td>` +
           `<td>${lines(list, duration)}</td>` +
+          `<td>${lines(list, atSea)}</td>` +
           `<td>${lines(list, one => (one.stats ? windPercent(one.stats.shares.close) : '—'))}</td>` +
           `<td>${lines(list, margin)}</td></tr>`;
       }).join('');
       const autos = [...legRoutes.values()].map(route => routeList(route)[0]);
       const totalNm = autos.reduce((sum, one) => sum + one.nm, 0);
       const totalHours = autos.reduce((sum, one) => sum + hours(one), 0);
+      const totalPlanned = [...legRoutes.values()].reduce((sum, route) => sum + plannedHours(route.leg), 0);
       return `<table class="figures-table voyage-table"><thead><tr><th>Étape</th><th>Trajet</th><th>Distance</th>` +
-        `<th>Durée en tirant des bords${why('tacking')}</th><th>Vent de face${why('shares')}</th><th>Marge${why('margin')}</th></tr></thead>` +
+        `<th>Durée en tirant des bords${why('tacking')}</th><th>Part de l'étape en mer${why('atSea')}</th><th>Vent de face${why('shares')}</th><th>Marge${why('margin')}</th></tr></thead>` +
         `<tbody>${rows}</tbody>` +
         `<tfoot><tr class="total"><td></td><td>Parcours auto, en tout</td><td>${Math.round(totalNm)} NM</td>` +
-        `<td>${formatHours(totalHours)}</td><td></td><td></td></tr></tfoot></table>`;
+        `<td>${formatHours(totalHours)}</td><td>${Math.round((totalHours / totalPlanned) * 100)} %</td><td></td><td></td></tr></tfoot></table>`;
     }
 
     function listenVoyageRows() {
@@ -848,9 +923,12 @@
         `<div class="small">${escapeHtml(formatDate(leg['Départ prévu']))} → ${escapeHtml(formatDate(leg['Arrivée prévue']))} · ` +
         `${plannedHours(leg) / 24} jours prévus</div>` +
         `<div class="small leg-distances">${legDistances(route)}</div>` +
+        `<div class="small delay">Retard au départ, pour simuler : <input type="number" class="delay-days" min="0" max="30" ` +
+        `step="0.5" value="${delays.get(legKey(route)) ?? 0}"> j${why('delay')}<div class="delay-figures"></div></div>` +
         (route.auto.missing ? `<div class="small warning">Parcours auto absent du fichier : tracé en ligne droite, ./update.sh le calcule.</div>` : '') +
         `<div class="trial"></div>` +
         `<div class="watch"></div>` +
+        `<div class="currents"></div>` +
         `<h3>Vers d'autres outils</h3><div class="small leg-links"></div>` +
         `<div class="wind-block"></div>` +
         `<p class="credit">Vent : statistiques d'Open-Meteo.com (CC BY 4.0), pas une prévision.</p>`;
@@ -858,6 +936,9 @@
       showWatchPanel();
       renderWindBlock(route);
       showLegLinks(route);
+      listenDelay(route);
+      refreshCurrents(route, { retry: true });
+      showDelayFigures();
       if (trial) loadCoastMask();
     }
 
@@ -971,7 +1052,35 @@
     ];
 
     // What a « ? » explains: only what the figures beside it need.
+    // The Beaufort scale of the World Meteorological Organization: each force's lowest wind in knots,
+    // the wave height likely in the open sea once the sea has built up, and how the sea looks.
+    const BEAUFORT = [
+      [0, 'Calme', 0, '< 1', '0', "mer d'huile"],
+      [1, 'Très légère brise', 1, '1–3', '0,1', 'rides'],
+      [2, 'Légère brise', 4, '4–6', '0,2', 'vaguelettes qui ne déferlent pas'],
+      [3, 'Petite brise', 7, '7–10', '0,6', 'très petites vagues, quelques moutons'],
+      [4, 'Jolie brise', 11, '11–16', '1', 'petites vagues, moutons nombreux'],
+      [5, 'Bonne brise', 17, '17–21', '2', 'vagues modérées et longues, embruns'],
+      [6, 'Vent frais', 22, '22–27', '3', "lames, crêtes d'écume blanche"],
+      [7, 'Grand frais', 28, '28–33', '4', "la mer grossit, l'écume part en traînées"],
+      [8, 'Coup de vent', 34, '34–40', '5,5', 'lames assez hautes, crêtes arrachées'],
+      [9, 'Fort coup de vent', 41, '41–47', '7', 'grosses lames, embruns qui gênent la vue'],
+      [10, 'Tempête', 48, '48–55', '9', 'très grosses lames déferlantes, mer blanche'],
+      [11, 'Violente tempête', 56, '56–63', '11,5', 'lames exceptionnellement hautes'],
+      [12, 'Ouragan', 64, '64 et +', '14 et +', "air plein d'écume et d'embruns"],
+    ];
+
     const EXPLANATIONS = {
+      beaufort: () => `Les couleurs des roses suivent l'échelle de Beaufort :` +
+        `<table><tr><th>Force</th><th></th><th>Vent (nd)</th><th>Vagues (m)</th><th>La mer</th></tr>` +
+        BEAUFORT.map(([force, name, lowest, knots, waves, sea]) => {
+          const band = SPEED_BANDS.find(({ max }) => lowest < max);
+          return `<tr><td><span class="swatch" style="background:${band.color}"></span>${force}</td><td>${name}</td>` +
+            `<td>${knots}</td><td>${waves}</td><td>${sea}</td></tr>`;
+        }).join('') + `</table>` +
+        `Vagues : la hauteur probable au large, une fois la mer formée ; moins haute près de terre ou quand le vent ` +
+        `vient de se lever, plus creuse quand le vent s'oppose au courant. D'après l'échelle de l'Organisation ` +
+        `météorologique mondiale.`,
       roses: () => `Chaque heure, la direction du vent est prise par rapport au cap du parcours à ce point : un vent du ` +
         `nord vient de l'avant quand le bateau monte au nord. Un pétale n'est donc pas un point : il réunit toutes les ` +
         `heures, de tous les points, où le vent venait de cette direction. Chaque point pèse pour les milles qu'il représente.`,
@@ -996,8 +1105,31 @@
       },
       years: () => `La part de vent de face de l'année la plus facile et de la plus dure, de ${windStats.years[0]} ` +
         `à ${windStats.years[1]}.`,
+      atSea: () => `La durée en tirant des bords, en naviguant jour et nuit à la vitesse moyenne, rapportée aux jours ` +
+        `que le tableur prévoit pour l'étape, dates de départ et d'arrivée comprises. Le reste est à terre ou au mouillage : ` +
+        `escales, visites, attente de la météo. Faible, l'étape laisse du temps ; au-delà de 100 %, elle ne tient pas dans ` +
+        `ses dates. Le total rapporte le temps en mer des parcours auto aux jours de toutes les étapes.`,
       margin: () => `Les jours que le tableur prévoit pour l'étape, dates de départ et d'arrivée comprises, moins la durée ` +
         `en tirant des bords à la vitesse moyenne.`,
+      timeline: () => `Chaque étape part le jour prévu à ${departureHour} h UTC (réglage « départ à »), plus tard si on lui ` +
+        `donne un retard ou si l'étape d'avant n'est pas arrivée, et navigue à ${trialSpeed} nd en tirant des bords comme ` +
+        `dans le tableau du voyage. Le cadre : les dates de l'étape au tableur et ses jours prévus ; la barre : le temps ` +
+        `en mer, écrit à sa fin quand le cadre a la place. Une étape qui a un parcours manuel a deux barres, l'auto ` +
+        `au-dessus et le manuel en dessous ; le voilier et les étapes suivantes suivent le manuel. Une barre est pâle tant ` +
+        `que le vent de son parcours n'est pas calculé (route directe) ; ` +
+        `en rouge : une arrivée après la date prévue, la relève d'équipage menacée. C'est le plan, pas une prévision. ` +
+        `Jour ou nuit à l'arrivée : lever et coucher du soleil au port, calculés par SunCalc.`,
+      delay: () => `Des jours de retard au départ de l'étape, pour voir ce que la suite absorbe : chaque étape attend ` +
+        `l'arrivée de la précédente, et la frise montre en rouge une arrivée après la date prévue. Une simulation gardée ` +
+        `dans ce navigateur, pas dans le fichier de parcours.`,
+      currents: () => `D'après Open-Meteo (modèle SMOC de Météo-France pour Copernicus Marine, mailles d'environ 8 km, ` +
+        `marée comprise), aux dates de l'étape à ${CURRENTS_MARGIN_DAYS} jours près, en ${CURRENTS_YEAR} : une année ` +
+        `suffit, les marées se répètent. Un point tous les ${CURRENTS_SPACING_NM} NM ; une zone : le courant y dépasse ` +
+        `${String(STRONG_CURRENT_KN).replace('.', ',')} nd au moins ${STRONG_SHARE * 100} % du temps, aux pointes des ` +
+        `vives-eaux. Son sens est celui de ses heures les plus fortes : dans un sens puis l'autre avec la marée, ou toujours ` +
+        `le même. Le modèle ne voit pas les raz, les pointes ni les passes plus étroites que ses mailles : sans zone ne veut ` +
+        `pas dire sans courant. L'heure de passage se choisit avec l'annuaire des marées ; un passage connu des guides se ` +
+        `note en point de vigilance « Courant ».`,
     };
 
     const why = key => ` <button type="button" class="why" data-why="${key}" aria-label="Explication">?</button>`;
@@ -1005,6 +1137,7 @@
 
     function showWhy(button) {
       whyTip.innerHTML = EXPLANATIONS[button.dataset.why]();
+      whyTip.classList.toggle('wide', !!whyTip.querySelector('table'));
       whyTip.hidden = false;
       const at = button.getBoundingClientRect();
       whyTip.style.left = `${Math.max(4, Math.min(at.left - 8, innerWidth - whyTip.offsetWidth - 4))}px`;
@@ -1087,7 +1220,10 @@
           },
         })
           .then(stats => { entry.stats = stats; }, error => { entry.error = error; })
-          .finally(() => refreshWind(route, key));
+          .finally(() => {
+            refreshWind(route, key);
+            scheduleTimeline();
+          });
       }
       return manualWinds.get(key);
     }
@@ -1159,6 +1295,7 @@
         `</div>` +
         `<p class="period">Le vent du ${dayMonth(leg['Départ prévu'], -marginDays)} au ${dayMonth(leg['Arrivée prévue'], marginDays)}, ` +
         `chaque année de ${first} à ${last}${why('period')}<span>les dates de l'étape, ${marginDays} jours de marge de chaque côté</span></p>` +
+        `<div class="scale-caption">Échelle de Beaufort${why('beaufort')}</div>` +
         speedScale() +
         paceHtml() +
         `<div class="wind-figures">${windTableHtml(route)}</div>`;
@@ -1368,9 +1505,11 @@
         if (distances) distances.innerHTML = legDistances(route);
         showLegLinks(route);
         renderWindBlock(route);
+        refreshCurrents(route);
       } else if (!shownRoute && side.querySelector('.voyage-figures')) {
         updateFigures();
       }
+      scheduleTimeline();
     }
 
     function startEditing(route) {
@@ -1393,6 +1532,7 @@
       if (shownRoute === route) {
         manualWind(route);
         renderWindBlock(route);
+        refreshCurrents(route, { retry: true });
       }
       showTrialPanel();
     }
@@ -1551,6 +1691,363 @@
     }
 
     map.on('moveend overlayadd overlayremove', showIsobaths);
+
+    const HOUR = 3_600_000;
+    const DAY = 24 * HOUR;
+    // The delays typed in the legs' panels: a simulation kept in this browser, not part of the plan.
+    const DELAYS_KEY = 'timeline-delays';
+    const delays = new Map();
+    const timeline = document.querySelector('.timeline');
+    const track = timeline.querySelector('.tl-track');
+    new ResizeObserver(() => !timeline.hidden && fitDurations()).observe(track);
+    let timelineAt = null;
+    let lastPlan = null;
+    let timelineQueued = false;
+    const BOAT_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">' +
+      '<path d="M11.5 2.5 V17 H5 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<path d="M13 5 L19 17 H13 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<path d="M3 18.5 H21 L18 22 H6 Z" fill="#111"/></svg>';
+    const boat = L.marker([0, 0], {
+      icon: L.divIcon({ className: 'boat-icon', html: BOAT_SVG, iconSize: [26, 26], iconAnchor: [13, 20] }),
+      keyboard: false,
+      zIndexOffset: 1000,
+    });
+
+    // Each leg leaves on its planned day at the departure hour, later when it is delayed or the leg
+    // before has not arrived, and sails each of its routes at the mean speed, tacking as the wind
+    // table counts. The boat, and the legs after, follow its manual route when it has one: the
+    // variant studied; the auto route stays beside it for comparison.
+    function voyagePlan() {
+      let ready = -Infinity;
+      return [...legRoutes.values()].map(route => {
+        const { leg } = route;
+        const planned = utcDate(leg['Départ prévu']).getTime() + departureHour * HOUR;
+        const departs = Math.max(planned + (delays.get(legKey(route)) ?? 0) * DAY, ready);
+        const trial = trials.get(legKey(route));
+        const sailed = routeList(route).map(one => {
+          const hours = (one.stats ? sailedNm(one) : one.nm) / trialSpeed;
+          return {
+            one,
+            path: one.manual ? trial?.path : route.path,
+            hours,
+            arrives: departs + hours * HOUR,
+            rough: !one.stats && one.mode !== ROUTE_MODES.straight,
+          };
+        }).filter(({ path }) => path);
+        const followed = sailed.at(-1);
+        ready = followed.arrives;
+        return {
+          route, ...followed, sailed, planned, departs,
+          opens: utcDate(leg['Départ prévu']).getTime(),
+          closes: utcDate(leg['Arrivée prévue']).getTime() + DAY,
+        };
+      });
+    }
+
+    function pointAlong(path, fraction) {
+      const points = path.map(point => L.latLng(point));
+      const lengths = points.slice(1).map((to, i) => map.distance(points[i], to));
+      let left = fraction * lengths.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < lengths.length; i++) {
+        if (left <= lengths[i] || i === lengths.length - 1) {
+          const t = lengths[i] ? Math.min(1, left / lengths[i]) : 0;
+          return L.latLng(points[i].lat + (points[i + 1].lat - points[i].lat) * t, points[i].lng + (points[i + 1].lng - points[i].lng) * t);
+        }
+        left -= lengths[i];
+      }
+      return points[0];
+    }
+
+    function boatAt(plan, at) {
+      const step = plan.find(one => at < one.arrives);
+      if (!step) return { step: plan.at(-1), state: 'arrived', at: L.latLng(plan.at(-1).path.at(-1)) };
+      if (at < step.departs) return { step, state: 'port', at: L.latLng(step.path[0]) };
+      const fraction = (at - step.departs) / (step.arrives - step.departs);
+      return { step, state: 'sea', fraction, at: pointAlong(step.path, fraction) };
+    }
+
+    const formatWhen = ms => {
+      const date = new Date(ms);
+      return `${date.toLocaleDateString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} ` +
+        `${date.getUTCHours()} h`;
+    };
+
+    // Day or night at a place and time, from SunCalc; nothing when it did not load or the sun does not set.
+    function daylight(at, ms) {
+      if (typeof SunCalc === 'undefined') return '';
+      const noon = new Date(ms);
+      noon.setUTCHours(12, 0, 0, 0);
+      const { sunrise, sunset } = SunCalc.getTimes(noon, at.lat, at.lng);
+      if (Number.isNaN(sunrise.getTime()) || Number.isNaN(sunset.getTime())) return '';
+      return ms >= sunrise.getTime() && ms <= sunset.getTime() ? 'de jour' : 'de nuit';
+    }
+
+    const lateBy = (step, { arrives } = step) => (arrives > step.closes ? formatHours((arrives - step.closes) / HOUR) : '');
+    const routeWord = step => (step.one.manual ? 'parcours manuel' : 'parcours auto');
+
+    function boatStatus(where) {
+      const { step, state } = where;
+      const { leg } = step.route;
+      const when = formatWhen(timelineAt);
+      if (state === 'arrived') return `${when} · arrivé à ${escapeHtml(leg['Débarquement hypothétique'])}`;
+      if (state === 'port') {
+        return `${when} · au port, ${escapeHtml(leg['Embarquement hypothétique'])} · départ de l'étape ` +
+          `${escapeHtml(leg['Étape'])} ${formatWhen(step.departs)}`;
+      }
+      const end = L.latLng(step.path.at(-1));
+      const late = lateBy(step);
+      return `${when} · étape ${escapeHtml(leg['Étape'])} en mer, ${Math.round(where.fraction * step.one.nm)} / ` +
+        `${Math.round(step.one.nm)} NM du ${routeWord(step)} · arrivée ${formatWhen(step.arrives)}` +
+        `${daylight(end, step.arrives) ? `, ${daylight(end, step.arrives)}` : ''}` +
+        (late ? ` · <span class="late">${late} après la date prévue</span>` : '');
+    }
+
+    // What a leg's frame and bars stand for, in plain text for their tooltip: a bar per route.
+    function stepSummary(step) {
+      const { leg } = step.route;
+      const delay = delays.get(legKey(step.route));
+      const bar = alt => {
+        const end = L.latLng(alt.path.at(-1));
+        const late = lateBy(step, alt);
+        return `${alt.one.manual ? 'Barre violette, parcours manuel' : 'Barre bleue, parcours auto'} : ` +
+          `${formatHours(alt.hours)} en mer${alt.rough ? ' en route directe (vent pas encore calculé)' : ''}, ` +
+          `arrivée ${formatWhen(alt.arrives)} UTC${daylight(end, alt.arrives) ? `, ${daylight(end, alt.arrives)}` : ''}, ` +
+          (late ? `${late} après la date prévue` : `marge ${formatHours((step.closes - alt.arrives) / HOUR)}`);
+      };
+      return [
+        `Étape ${leg['Étape']} · ${leg['Zone / itinéraire']}`,
+        `Cadre : prévue du ${formatDate(leg['Départ prévu'], {})} au ${formatDate(leg['Arrivée prévue'], {})}, ` +
+          `${plannedHours(leg) / 24} jours`,
+        `Départ ${formatWhen(step.departs)} UTC` +
+          (delay ? `, avec ${String(delay).replace('.', ',')} j de retard simulé` : '') +
+          `, à ${trialSpeed} nd en tirant des bords`,
+        ...step.sailed.map(bar),
+        ...(step.sailed.length > 1 ? ['Le voilier de la frise, et les étapes suivantes, suivent le parcours manuel.'] : []),
+      ].join('\n');
+    }
+
+    function scheduleTimeline() {
+      if (timelineQueued) return;
+      timelineQueued = true;
+      requestAnimationFrame(() => {
+        timelineQueued = false;
+        renderTimeline();
+      });
+    }
+
+    const inDays = hours => (hours < 24 ? `${Math.round(hours)} h` : `${(hours / 24).toFixed(1).replace('.', ',')} j`);
+
+    // A duration is written only where its frame has room for it; the tooltip gives it everywhere.
+    function fitDurations() {
+      const frames = track.querySelectorAll('.tl-window');
+      frames.forEach(frame => {
+        const days = frame.querySelector('.tl-days');
+        days.hidden = false;
+        days.hidden = frame.querySelector('.tl-leg').offsetWidth > frame.clientWidth - 4;
+      });
+      track.querySelectorAll('.tl-length').forEach(label => {
+        const frame = frames[label.dataset.frame];
+        label.hidden = label.offsetLeft + label.offsetWidth > frame.offsetLeft + frame.offsetWidth - 2;
+      });
+    }
+
+    function renderTimeline() {
+      if (!file || !legRoutes.size) return;
+      const plan = voyagePlan();
+      lastPlan = plan;
+      const start = plan[0].opens;
+      const end = Math.max(plan.at(-1).closes, plan.at(-1).arrives) + DAY;
+      lastPlan.span = { start, end };
+      const x = ms => `${((ms - start) / (end - start)) * 100}%`;
+      const width = (from, to) => `${(Math.max(0, to - from) / (end - start)) * 100}%`;
+      timelineAt = Math.min(Math.max(timelineAt ?? plan[0].departs, start), end);
+      const months = [];
+      for (const month = new Date(start); month.getTime() < end; month.setUTCMonth(month.getUTCMonth() + 1, 1)) {
+        const from = Math.max(start, Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1));
+        months.push(`<span class="tl-month" style="left: ${x(from)}">` +
+          `${month.toLocaleDateString('fr-CH', { month: 'long', timeZone: 'UTC' })}</span>`);
+      }
+      // The frames first, then the time at sea, then the lateness: a late leg runs over the next frame.
+      // Each says what it is when hovered: few read the « ? ».
+      const frames = plan.map(step => `<div class="tl-window${shownRoute === step.route ? ' shown' : ''}" ` +
+        `style="left: ${x(step.opens)}; width: ${width(step.opens, step.closes)}" title="${escapeHtml(stepSummary(step))}">` +
+        `<span class="tl-leg">${escapeHtml(legKey(step.route))}<span class="tl-days"> · ${plannedHours(step.route.leg) / 24} j</span></span></div>`);
+      // A leg with both routes has two thin bars: the auto route above, the manual one below.
+      const place = (step, alt) => (step.sailed.length > 1 ? (alt.one.manual ? ' lower' : ' upper') : '');
+      const seas = plan.flatMap(step => step.sailed.map(alt =>
+        `<div class="tl-sea${alt.one.manual ? ' manual' : ''}${alt.rough ? ' rough' : ''}${place(step, alt)}" ` +
+        `style="left: ${x(step.departs)}; width: ${width(step.departs, Math.min(alt.arrives, step.closes))}" ` +
+        `title="${escapeHtml(stepSummary(step))}"></div>`));
+      const lates = plan.flatMap(step => step.sailed.filter(alt => alt.arrives > step.closes).map(alt => {
+        const from = Math.max(step.departs, step.closes);
+        return `<div class="tl-late${place(step, alt)}" style="left: ${x(from)}; width: ${width(from, alt.arrives)}" ` +
+          `title="${escapeHtml(stepSummary(step))}"></div>`;
+      }));
+      const lengths = plan.flatMap((step, i) => step.sailed.filter(alt => alt.arrives <= step.closes).map(alt =>
+        `<span class="tl-length${place(step, alt)}" data-frame="${i}" style="left: ${x(alt.arrives)}">${inDays(alt.hours)}</span>`));
+      const delayed = plan.filter(step => delays.get(legKey(step.route))).map(step =>
+        `<span class="tl-delay" style="left: ${x(step.planned)}">+${String(delays.get(legKey(step.route))).replace('.', ',')} j</span>`);
+      track.innerHTML = [...months, ...frames, ...seas, ...lates, ...lengths, ...delayed].join('') + `<div class="tl-cursor"></div>`;
+      timeline.querySelector('.tl-note').innerHTML = `cadre : dates du tableur, jours prévus · ` +
+        `barre : temps en mer, <span class="tl-key">parcours auto</span>, ` +
+        `<span class="tl-key manual">manuel</span> · ` +
+        `<span class="late">rouge</span> : arrivée en retard · heures UTC · glisser, molette ou flèches${why('timeline')}`;
+      timeline.hidden = false;
+      fitDurations();
+      showDelayFigures();
+      if (shownRoute) refreshCurrents(shownRoute);
+      moveBoat();
+    }
+
+    function moveBoat() {
+      if (!lastPlan) return;
+      const { start, end } = lastPlan.span;
+      track.querySelector('.tl-cursor').style.left = `${((timelineAt - start) / (end - start)) * 100}%`;
+      const where = boatAt(lastPlan, timelineAt);
+      const status = boatStatus(where);
+      timeline.querySelector('.tl-status').innerHTML = status;
+      boat.setLatLng(where.at).bindTooltip(status, { direction: 'top', offset: [0, -16] });
+      boat.off('click').on('click', () => goTo(where.step.route));
+      if (!map.hasLayer(boat)) boat.addTo(map);
+    }
+
+    function moveTimeline(at) {
+      if (!lastPlan) return;
+      const { start, end } = lastPlan.span;
+      timelineAt = Math.min(Math.max(Math.round(at / HOUR) * HOUR, start), end);
+      moveBoat();
+    }
+
+    const timeAt = clientX => {
+      const box = track.getBoundingClientRect();
+      const { start, end } = lastPlan.span;
+      return start + Math.min(1, Math.max(0, (clientX - box.left) / box.width)) * (end - start);
+    };
+    track.addEventListener('pointerdown', event => {
+      track.setPointerCapture(event.pointerId);
+      moveTimeline(timeAt(event.clientX));
+    });
+    track.addEventListener('pointermove', event => track.hasPointerCapture(event.pointerId) && moveTimeline(timeAt(event.clientX)));
+    track.addEventListener('wheel', event => {
+      event.preventDefault();
+      moveTimeline(timelineAt + Math.sign(event.deltaY || event.deltaX) * (event.shiftKey ? DAY : 3 * HOUR));
+    }, { passive: false });
+    track.addEventListener('keydown', event => {
+      const step = { ArrowLeft: -HOUR, ArrowRight: HOUR, PageUp: -DAY, PageDown: DAY }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      moveTimeline(timelineAt + (event.shiftKey ? step * 24 : step));
+    });
+
+    // The shown leg's times under its delay, in its panel.
+    function showDelayFigures() {
+      const box = side.querySelector('.delay-figures');
+      if (!box || !shownRoute || !lastPlan) return;
+      const step = lastPlan.find(one => one.route === shownRoute);
+      const end = L.latLng(step.path.at(-1));
+      const late = lateBy(step);
+      const margin = (step.closes - step.arrives) / HOUR;
+      box.innerHTML = `Départ ${formatWhen(step.departs)}, arrivée ${formatWhen(step.arrives)} UTC` +
+        `${daylight(end, step.arrives) ? `, ${daylight(end, step.arrives)}` : ''}, par le ${routeWord(step)}` +
+        `${step.rough ? ' (vent pas encore calculé : en route directe)' : ''} : ` +
+        (late ? `<span class="late">${late} après la date prévue</span>` : `encore ${formatHours(margin)} avant la fin de l'étape`) + '.';
+    }
+
+    function listenDelay(route) {
+      side.querySelector('.delay-days')?.addEventListener('input', event => {
+        const days = Number(event.target.value);
+        if (event.target.value === '' || !(days >= 0)) return;
+        if (days) delays.set(legKey(route), days);
+        else delays.delete(legKey(route));
+        storeSet(DELAYS_KEY, Object.fromEntries(delays));
+        scheduleTimeline();
+      });
+    }
+
+    // The strong currents of the shown leg's routes, computed once per route and kept for the visit.
+    const legCurrents = new Map();
+    const currentMarkers = L.layerGroup().addTo(map);
+    const RELATION_WORDS = { avec: 'portant', contre: 'contraire', travers: 'de travers' };
+
+    // A route whose currents failed is asked again only when its leg is shown anew: redrawn after
+    // the failure, it would ask again at once, and again.
+    function currentsOf(route, path, retry) {
+      const points = path.map(point => L.latLng(point)).map(({ lat, lng }) => [lat, lng]);
+      const key = `${legKey(route)}|${points.map(([lat, lng]) => `${lat.toFixed(4)},${lng.toFixed(4)}`).join(';')}`;
+      if (!legCurrents.has(key) || (retry && legCurrents.get(key).error)) {
+        const entry = { done: 0, total: 0, pause: 0, result: null, error: null };
+        legCurrents.set(key, entry);
+        routeCurrents(points, route.leg, {
+          onProgress: (done, total, pause) => {
+            Object.assign(entry, { done, total, pause: pause ?? 0 });
+            if (shownRoute === route) refreshCurrents(route);
+          },
+        })
+          .then(result => { entry.result = result; }, error => { entry.error = error; })
+          .finally(() => shownRoute === route && refreshCurrents(route));
+      }
+      return legCurrents.get(key);
+    }
+
+    function currentMarkHtml(zone, colour) {
+      const arrows = zone.directions.map(({ degrees }) => `<g transform="rotate(${degrees} 17 17)">` +
+        (zone.alternating ? '<line x1="17" y1="17" x2="17" y2="8" stroke="#111" stroke-width="2"/>'
+          : '<line x1="17" y1="27" x2="17" y2="8" stroke="#111" stroke-width="2"/>') +
+        '<path d="M17 4.5 L13 10 H21 Z" fill="#111"/></g>').join('');
+      return `<svg viewBox="0 0 34 34" width="34" height="34"><circle cx="17" cy="17" r="14" fill="#fff" ` +
+        `stroke="${colour}" stroke-width="2.5"/>${arrows}</svg>` +
+        `<span>${zone.maxKn.toLocaleString('fr-CH', { maximumFractionDigits: 1 })} nd</span>`;
+    }
+
+    function zoneText(zone, one, route) {
+      const direction = ({ degrees, relation }) => `vers ${compassName(degrees)} (${RELATION_WORDS[relation]})`;
+      const sense = zone.alternating
+        ? `dans un sens puis l'autre avec la marée : ${zone.directions.map(direction).join(', ')}`
+        : `${direction(zone.directions[0])} aux heures fortes`;
+      const step = lastPlan?.find(plan => plan.route === route);
+      const reached = step && step.one.manual === one.manual
+        ? ` Atteinte d'après la frise : ${formatWhen(step.departs + (zone.fromNm / one.nm) * step.hours * HOUR)} UTC.` : '';
+      return `<b>${Math.round(zone.fromNm)} à ${Math.round(zone.toNm)} NM du départ</b> : jusqu'à ` +
+        `${zone.maxKn.toLocaleString('fr-CH', { maximumFractionDigits: 1 })} nd, ${sense}.${reached}`;
+    }
+
+    function refreshCurrents(route, { retry = false } = {}) {
+      const box = side.querySelector('.currents');
+      if (shownRoute !== route || !box) return;
+      currentMarkers.clearLayers();
+      const routes = [];
+      if (route.auto.mode === ROUTE_MODES.sea && !route.auto.missing) routes.push({ manual: false, path: route.path, nm: route.auto.nm });
+      const trial = trials.get(legKey(route));
+      if (trial?.path && trial.mode === ROUTE_MODES.sea) routes.push({ manual: true, path: trial.path, nm: pathNm(trial.path) });
+      if (!routes.length) {
+        box.innerHTML = '';
+        return;
+      }
+      const lines = routes.map(one => {
+        const name = one.manual ? 'Parcours manuel' : 'Parcours auto';
+        const tone = one.manual ? ' class="manual-text"' : '';
+        if (one.manual && editing === route) return `<div${tone}>${name} : courants calculés à la fin de la modification.</div>`;
+        const entry = currentsOf(route, one.path, retry);
+        if (entry.error) return `<div class="warning">${name} : ${escapeHtml(weatherErrorMessage(entry.error, 'courants indisponibles.'))}</div>`;
+        if (!entry.result) {
+          return progressBar(entry.total ? entry.done / entry.total : 0, `${name} : courants, ${entry.done} / ${entry.total || '…'} points` +
+            (entry.pause ? ` · pause de ${entry.pause} s (limite de requêtes)` : ''));
+        }
+        const { zones } = entry.result;
+        zones.forEach(zone => L.marker(zone.at, {
+          icon: L.divIcon({ className: 'current-mark', html: currentMarkHtml(zone, one.manual ? TRIAL_COLOR : ROUTE_COLOR), iconSize: [34, 46], iconAnchor: [17, 17] }),
+          keyboard: false,
+        }).bindTooltip(`<b>Courant fort · ${name.toLowerCase()}</b><br>${zoneText(zone, one, route)}`, { maxWidth: 280 })
+          .addTo(currentMarkers));
+        return zones.length
+          ? `<div${tone}>${name} : ${zones.length} zone${zones.length > 1 ? 's' : ''} de courant fort</div>` +
+            `<ul>${zones.map(zone => `<li>${zoneText(zone, one, route)}</li>`).join('')}</ul>`
+          : `<div${tone}>${name} : aucune zone de plus de ${String(STRONG_CURRENT_KN).replace('.', ',')} nd d'après le modèle.</div>`;
+      });
+      box.innerHTML = `<h3>Courants forts${why('currents')}</h3>${lines.join('')}` +
+        `<div class="small">Une zone : un passage à planifier avec l'annuaire des marées. Mailles de 8 km : les raz et les ` +
+        `pointes n'y sont pas.</div>`;
+    }
 
     function trialFigures(route) {
       if (!trials.has(legKey(route))) return 'Cliquer sur la carte pour poser un premier passage.';
@@ -1769,6 +2266,10 @@
         return;
       }
       const kept = await storeGet(KEPT_FILE);
+      const keptDelays = await storeGet(DELAYS_KEY);
+      if (keptDelays && typeof keptDelays === 'object') {
+        Object.entries(keptDelays).forEach(([key, days]) => Number(days) > 0 && delays.set(key, Number(days)));
+      }
       const legacy = await legacyPassages;
       if (kept) {
         try {

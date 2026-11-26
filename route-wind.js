@@ -25,9 +25,9 @@ function initialBearing([lat1, lon1], [lat2, lon2]) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-// The middle of every spacing of route, with the course there and the miles it stands for, rounded
-// to 0.1° like the archives' grid.
-function routeSamples(path, spacingNm) {
+// The middle of every spacing of route, with the course there, the miles it stands for and its
+// distance from the start, rounded to 0.1° like the archives' grid unless told otherwise.
+function routeSamples(path, spacingNm, decimals = 1) {
   const stretches = path.slice(1).map((to, i) => ({ from: path[i], to, length: greatCircleNm(path[i], to) }));
   const total = stretches.reduce((sum, { length }) => sum + length, 0);
   const count = Math.max(1, Math.round(total / spacingNm));
@@ -38,8 +38,9 @@ function routeSamples(path, spacingNm) {
     while (k < stretches.length - 1 && target > stretches[k].length) target -= stretches[k++].length;
     const stretch = stretches[k];
     const t = stretch.length ? Math.min(target / stretch.length, 1) : 0;
-    const at = [0, 1].map(k => Math.round((stretch.from[k] + (stretch.to[k] - stretch.from[k]) * t) * 10) / 10);
-    return { at, course: initialBearing(stretch.from, stretch.to), weight: step };
+    const scale = 10 ** decimals;
+    const at = [0, 1].map(k => Math.round((stretch.from[k] + (stretch.to[k] - stretch.from[k]) * t) * scale) / scale);
+    return { at, course: initialBearing(stretch.from, stretch.to), weight: step, along: (i + 0.5) * step };
   });
 }
 

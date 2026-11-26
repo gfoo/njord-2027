@@ -6,7 +6,11 @@ const ROUTE_NAMES = { auto: 'auto', manual: 'manuel' };
 const ROUTE_MODES = { sea: 'mer', straight: 'ligne droite' };
 const ROUTES_FILE_NAME = /^NJORD_2027_parcours_v(\d{2})\.xlsx$/;
 const WIND_SHARES = ['close', 'reach', 'run', 'light', 'strong', 'gale'];
-const SETTING_ROWS = { speed: 'Vitesse moyenne (nd)', pointing: 'Angle de remontée au vent (°)' };
+const SETTING_ROWS = { speed: 'Vitesse moyenne (nd)', pointing: 'Angle de remontée au vent (°)', departure: 'Heure de départ (UTC)' };
+// The hour each leg leaves on its planned day, in UTC, when the file does not say: an earlier file
+// has no such row, and gains it when the map writes its next version.
+const DEFAULT_DEPARTURE_HOUR = 8;
+const DEPARTURE_NOTE = "L'heure de départ de chaque étape, le jour prévu : la frise sous la carte en part.";
 // The points of vigilance: what to watch at a place of a leg, typed by hand, every cell of them.
 const WATCH_SHEET = 'Points';
 const WATCH_COLUMNS = ['Étape', 'Position', 'Type', 'Niveau', 'Titre', 'Note', 'Source', 'À revérifier'];
@@ -186,6 +190,8 @@ async function readRoutesFile(buffer) {
     watch,
     speed: Number(settings[SETTING_ROWS.speed]) || 5,
     pointing: Number(settings[SETTING_ROWS.pointing]) || 45,
+    departure: settings[SETTING_ROWS.departure] == null || settings[SETTING_ROWS.departure] === ''
+      ? DEFAULT_DEPARTURE_HOUR : Number(settings[SETTING_ROWS.departure]),
     wind: {
       source: settings['Vent : source'],
       years,
@@ -242,7 +248,7 @@ function windRows(file, route, styles) {
 // The next version: the file as it was, its routes, their wind, its points of vigilance and the
 // settings replaced. routes: { leg, name, mode, passages, path, nm, stats } in the legs' order, auto
 // before manual; watch: { leg, at, type, level, title, note, source, recheck } in the legs' order.
-async function writeRoutesFile(file, { routes, speed, pointing, watch }) {
+async function writeRoutesFile(file, { routes, speed, pointing, departure, watch }) {
   // A copy of the parts: the file stays as it was read if anything below fails.
   const book = { ...file.book, files: new Map(file.book.files), sheets: new Map(file.book.sheets) };
   const name = routesFileName(file.version + 1);
@@ -267,8 +273,17 @@ async function writeRoutesFile(file, { routes, speed, pointing, watch }) {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ` +
     `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const changes = { Fichier: name, 'Généré le': stamp, [SETTING_ROWS.speed]: speed, [SETTING_ROWS.pointing]: pointing };
-  writeSheet(book, 'Réglages', readSheet(book, 'Réglages').map(row =>
-    (row[0]?.value in changes ? [row[0], { ...row[1], value: changes[row[0].value] }, ...row.slice(2)] : row)));
+  const changes = { Fichier: name, 'Généré le': stamp, [SETTING_ROWS.speed]: speed, [SETTING_ROWS.pointing]: pointing,
+    [SETTING_ROWS.departure]: departure };
+  const settings = readSheet(book, 'Réglages').map(row =>
+    (row[0]?.value in changes ? [row[0], { ...row[1], value: changes[row[0].value] }, ...row.slice(2)] : row));
+  // A file written before the departure hour existed gains its row after the pointing angle, styled like it.
+  if (!settings.some(row => row[0]?.value === SETTING_ROWS.departure)) {
+    const at = settings.findIndex(row => row[0]?.value === SETTING_ROWS.pointing);
+    const like = settings[at] ?? [];
+    settings.splice(at < 0 ? settings.length : at + 1, 0, [SETTING_ROWS.departure, departure, DEPARTURE_NOTE]
+      .map((value, i) => ({ value, style: like[i]?.style ?? null })));
+  }
+  writeSheet(book, 'Réglages', settings);
   return { name, bytes: await saveXlsx(book) };
 }
